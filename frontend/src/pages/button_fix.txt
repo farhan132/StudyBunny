@@ -1,0 +1,18 @@
+﻿                  <div className="assignment-actions">
+                    {assignment.status !== 'completed' && (
+                      <button 
+                        className="complete-btn"
+                        onClick={() => handleMarkComplete(assignment.id)}
+                        title="Mark as complete"
+                      >
+                        
+                      </button>
+                    )}
+                    <button 
+                      className="delete-btn"
+                      onClick={() => handleDeleteAssignment(assignment.id)}
+                      title="Delete assignment"
+                    >
+                      
+                    </button>
+                  </div>

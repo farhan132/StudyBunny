@@ -1,0 +1,48 @@
+﻿              assignments.map(assignment => (
+                <div key={assignment.id} className="assignment-card" data-priority={assignment.priority}>
+                  <div className="assignment-actions">
+                    {assignment.status !== 'completed' && (
+                      <button 
+                        className="complete-btn"
+                        onClick={() => handleMarkComplete(assignment.id)}
+                        title="Mark as complete"
+                      >
+                        
+                      </button>
+                    )}
+                    <button 
+                      className="delete-btn"
+                      onClick={() => handleDeleteAssignment(assignment.id)}
+                      title="Delete assignment"
+                    >
+                      
+                    </button>
+                  </div>
+
+                  <div className="assignment-header">
+                    <h3 className="assignment-title">{assignment.name}</h3>
+                    <div className="assignment-time">{assignment.estimatedTime}</div>
+                  </div>
+                  
+                  <div className="progress-section">
+                    <div className="progress-bar">
+                      <div 
+                        className="progress-fill" 
+                        style={{ width: ${assignment.completionPercentage}% }}
+                      ></div>
+                    </div>
+                    <div className="progress-percentage">{assignment.completionPercentage}%</div>
+                  </div>
+
+                  <div className="assignment-footer">
+                    <div className="assignment-due-date">
+                      {formatDate(assignment.dueDate)}
+                      {isOverdue(assignment.dueDate) && <span className="overdue-badge">OVERDUE</span>}
+                    </div>
+                  </div>
+                  
+                  {assignment.status === 'completed' && (
+                    <div className="completed-badge"> Completed</div>
+                  )}
+                </div>
+              ))

@@ -25,6 +25,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'apps.core',
+    'apps.study',
 ]
 
 MIDDLEWARE = [
@@ -99,3 +101,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+# StudyBunny Global Intensity (0.0 to 1.0)
+# 0.0 = Very low intensity, 1.0 = Maximum intensity
+# Change this value anytime to adjust system behavior
+STUDYBUNNY_INTENSITY = 0.7
