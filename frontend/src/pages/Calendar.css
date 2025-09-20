@@ -1,0 +1,76 @@
+﻿/* Calendar page specific styles */
+.calendar-placeholder {
+  background: #f8f9fa;
+  padding: 30px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  text-align: center;
+}
+
+.calendar-placeholder h2 {
+  color: #495057;
+  margin-bottom: 15px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.calendar-day {
+  padding: 15px 10px;
+  text-align: center;
+  background: white;
+  border-radius: 5px;
+  font-weight: 500;
+  color: #495057;
+  border: 1px solid #e9ecef;
+  transition: background-color 0.2s ease;
+}
+
+.calendar-day:hover {
+  background-color: #e9ecef;
+}
+
+/* Mobile responsiveness for Calendar */
+@media (max-width: 768px) {
+  .calendar-placeholder {
+    padding: 20px;
+    margin: 15px 0;
+  }
+  
+  .calendar-placeholder h2 {
+    font-size: 1.3em;
+  }
+  
+  .calendar-grid {
+    gap: 5px;
+    margin-top: 15px;
+  }
+  
+  .calendar-day {
+    padding: 10px 5px;
+    font-size: 0.9em;
+  }
+}
+
+@media (max-width: 480px) {
+  .calendar-placeholder {
+    padding: 15px;
+  }
+  
+  .calendar-placeholder h2 {
+    font-size: 1.2em;
+  }
+  
+  .calendar-grid {
+    gap: 3px;
+  }
+  
+  .calendar-day {
+    padding: 8px 3px;
+    font-size: 0.8em;
+  }
+}
