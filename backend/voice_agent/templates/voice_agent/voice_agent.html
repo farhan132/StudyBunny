@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyBunny Voice Agent</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .voice-section {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .voice-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .voice-button:hover {
+            background: #45a049;
+        }
+        .voice-button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .examples {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .examples h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .example {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-left: 4px solid #007bff;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 StudyBunny Voice Agent</h1>
+        
+        <div class="voice-section">
+            <button id="voiceButton" class="voice-button" onclick="startVoiceInput()">
+                🎤 Start Voice Input
+            </button>
+            <button id="stopButton" class="voice-button" onclick="stopVoiceInput()" disabled>
+                ⏹️ Stop Recording
+            </button>
+        </div>
+        
+        <div id="status" class="status info" style="display: none;">
+            Ready to listen...
+        </div>
+        
+        <div class="examples">
+            <h3>💡 Example Voice Commands:</h3>
+            <div class="example">
+                <strong>Complete a task:</strong> "I finished my math homework"
+            </div>
+            <div class="example">
+                <strong>Update progress:</strong> "Update science project progress to 75%"
+            </div>
+            <div class="example">
+                <strong>Set priority:</strong> "Set high priority for English essay"
+            </div>
+            <div class="example">
+                <strong>Multiple updates:</strong> "I completed homework and spent 2 hours on the project"
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let recognition;
+        let isRecording = false;
+
+        function startVoiceInput() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                showStatus('Speech recognition not supported in this browser', 'error');
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = function() {
+                isRecording = true;
+                document.getElementById('voiceButton').disabled = true;
+                document.getElementById('stopButton').disabled = false;
+                showStatus('🎤 Listening... Speak now!', 'info');
+            };
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                showStatus(`Heard: "${transcript}"`, 'info');
+                
+                // Send to backend for processing
+                processVoiceCommand(transcript);
+            };
+
+            recognition.onerror = function(event) {
+                showStatus(`Error: ${event.error}`, 'error');
+                stopVoiceInput();
+            };
+
+            recognition.onend = function() {
+                stopVoiceInput();
+            };
+
+            recognition.start();
+        }
+
+        function stopVoiceInput() {
+            if (recognition && isRecording) {
+                recognition.stop();
+            }
+            isRecording = false;
+            document.getElementById('voiceButton').disabled = false;
+            document.getElementById('stopButton').disabled = true;
+        }
+
+        function processVoiceCommand(command) {
+            showStatus('🤖 Processing voice command...', 'info');
+            
+            // For demo purposes, we'll use a mock user ID
+            // In a real app, you'd get this from the logged-in user
+            const userId = 1; // This should come from your authentication system
+            
+            fetch('/api/voice-agent/command/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: `user_id=${userId}&command_text=${encodeURIComponent(command)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showStatus('✅ Voice command processed successfully!', 'success');
+                } else {
+                    showStatus(`❌ Error: ${data.error}`, 'error');
+                }
+            })
+            .catch(error => {
+                showStatus(`❌ Network error: ${error.message}`, 'error');
+            });
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+            
+            // Auto-hide after 5 seconds for success messages
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>
