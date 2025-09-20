@@ -1,67 +1,12 @@
-# import voice_agent_gemini as va
-import speech_recognition as sr
+"""
+Core voice agent functions without speech recognition dependencies
+"""
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
 from django.contrib.auth.models import User
 from apps.study.task_utils import update_task_by_name, get_task_by_name
 from apps.study.models import Task
-
-def get_voice_input():
-    """Capture voice input and return as string"""
-    
-    # Load environment variables
-    load_dotenv()
-    
-    # Initialize speech recognition
-    recognizer = sr.Recognizer()
-    microphone = sr.Microphone()
-    
-    # Settings for complete sentences
-    recognizer.energy_threshold = 300
-    recognizer.dynamic_energy_threshold = True
-    recognizer.pause_threshold = 2.0  # Wait 2 seconds of silence
-    recognizer.phrase_threshold = 0.3
-    recognizer.non_speaking_duration = 1.0
-    
-    print("🎤 Listening... (speak now)")
-    
-    try:
-        with microphone as source:
-            print("🎤 Adjusting for ambient noise...")
-            recognizer.adjust_for_ambient_noise(source, duration=1)
-            print("✅ Ready! Speak to me...")
-            
-            # Listen for complete speech
-            audio = recognizer.listen(
-                source, 
-                timeout=30,
-                phrase_time_limit=60
-            )
-            
-            print("🔄 Processing your speech...")
-            
-            try:
-                # Convert speech to text
-                user_text = recognizer.recognize_google(audio, language='en-US')
-                
-                if user_text and len(user_text.strip()) > 0:
-                    print(f"✅ User said: {user_text}")
-                    return user_text
-                else:
-                    print("❌ No speech detected")
-                    return None
-                    
-            except sr.UnknownValueError:
-                print("❌ Could not understand - try speaking more clearly")
-                return None
-            except sr.RequestError as e:
-                print(f"❌ Speech recognition error: {e}")
-                return None
-                
-    except Exception as e:
-        print(f"❌ Microphone error: {e}")
-        return None
 
 def delete_task(task_name=None, parameters=None, user=None):
     """Delete task function - called when status update indicates completion"""
@@ -297,19 +242,31 @@ def main(user=None):
         print("❌ No user provided. Please provide a user for task operations.")
         return None
     
-    # Get voice input
-    text = get_voice_input()
+    # For testing, we'll simulate voice input
+    test_commands = [
+        "I finished my math homework",
+        "Update science project progress to 75%",
+        "Set high priority for English essay",
+        "I completed homework and spent 2 hours on the project"
+    ]
     
-    if text:
-        print(f"📝 Voice command: {text}")
-        
-        # Process the command and call appropriate functions
-        process_voice_command(text, user)
-        
-        return text
+    print("Available test commands:")
+    for i, cmd in enumerate(test_commands, 1):
+        print(f"  {i}. {cmd}")
+    
+    choice = input("\nEnter command number (1-4) or type your own command: ")
+    
+    if choice.isdigit() and 1 <= int(choice) <= len(test_commands):
+        text = test_commands[int(choice) - 1]
     else:
-        print("❌ No voice input captured")
-        return None
+        text = choice
+    
+    print(f"\n📝 Processing command: {text}")
+    
+    # Process the command and call appropriate functions
+    process_voice_command(text, user)
+    
+    return text
 
 # Example usage
 if __name__ == "__main__":
@@ -317,3 +274,100 @@ if __name__ == "__main__":
     # result = main(user=some_user)
     result = main()
     print(f"Final result: {result}")
+
+def create_task(task_name=None, parameters=None, user=None):
+    """Create task function - called when voice command indicates task creation"""
+    print("=" * 50)
+    print("📝 CREATE TASK FUNCTION TRIGGERED!")
+    print(f"   Task name: {task_name}")
+    print(f"   Parameters: {parameters}")
+    print("   ✅ This means a new task should be created")
+    print("=" * 50)
+    
+    if not user:
+        print("❌ No user provided for task creation")
+        return False
+    
+    if not task_name:
+        print("❌ No task name provided for creation")
+        return False
+    
+    try:
+        from apps.study.task_utils import create_task as create_task_util
+        from datetime import datetime, timedelta, date
+        
+        # Parse parameters to extract creation values
+        priority = 3  # Default medium priority
+        expected_time = timedelta(hours=2)  # Default 2 hours
+        due_date = datetime.now().date() + timedelta(days=7)  # Default 1 week
+        description = ""
+        
+        if parameters:
+            params_lower = parameters.lower()
+            
+            # Parse priority
+            priority_keywords = {
+                'very high': 5, 'high': 4, 'medium': 3, 'low': 2, 'very low': 1,
+                'priority 5': 5, 'priority 4': 4, 'priority 3': 3, 'priority 2': 2, 'priority 1': 1
+            }
+            
+            for keyword, prio in priority_keywords.items():
+                if keyword in params_lower:
+                    priority = prio
+                    print(f"   🔥 Setting priority to {priority} ({keyword})")
+                    break
+            
+            # Parse time estimates
+            import re
+            time_match = re.search(r'(\d+(?:\.\d+)?)\s*(hours?|minutes?|mins?|days?)', params_lower)
+            if time_match:
+                value = float(time_match.group(1))
+                unit = time_match.group(2)
+                
+                if 'hour' in unit:
+                    expected_time = timedelta(hours=value)
+                    print(f"   ⏰ Setting expected time to {value} hours")
+                elif 'minute' in unit or 'min' in unit:
+                    expected_time = timedelta(minutes=value)
+                    print(f"   ⏰ Setting expected time to {value} minutes")
+                elif 'day' in unit:
+                    expected_time = timedelta(days=value * 8)  # 8 hours per day
+                    print(f"   ⏰ Setting expected time to {value} days ({value * 8} hours)")
+            
+            # Parse due date
+            due_keywords = ['due', 'deadline', 'finish by', 'complete by']
+            for keyword in due_keywords:
+                if keyword in params_lower:
+                    # Simple parsing for "due tomorrow", "due next week", etc.
+                    if 'tomorrow' in params_lower:
+                        due_date = datetime.now().date() + timedelta(days=1)
+                        print(f"   📅 Setting due date to tomorrow ({due_date})")
+                    elif 'next week' in params_lower:
+                        due_date = datetime.now().date() + timedelta(days=7)
+                        print(f"   📅 Setting due date to next week ({due_date})")
+                    elif 'today' in params_lower:
+                        due_date = datetime.now().date()
+                        print(f"   📅 Setting due date to today ({due_date})")
+                    break
+        
+        # Create the task using the utility function
+        result = create_task_util(
+            user=user,
+            name=task_name,
+            priority=priority,
+            due_date=due_date,
+            expected_time=expected_time,
+            description=description
+        )
+        
+        if result['success']:
+            print(f"✅ Task created successfully: {result['message']}")
+            print(f"   Task ID: {result['task_id']}")
+            return True
+        else:
+            print(f"❌ Task creation failed: {result['error']}")
+            return False
+        
+    except Exception as e:
+        print(f"❌ Error creating task: {e}")
+        return False
