@@ -102,47 +102,6 @@ class DailySchedule(models.Model):
     def __str__(self):
         return f"Schedule for {self.date}"
     
-    @classmethod
-    def generate_daily_plan(cls, user, target_date=None):
-        """
-        Generate daily task plan for a user
-        This is a skeleton function - implement your scheduling logic here
-        
-        Args:
-            user: User instance
-            target_date: Date to generate plan for (defaults to today)
-        
-        Returns:
-            List of dictionaries with task assignments for the day
-            Format: [{'task': Task, 'time_allotted': timedelta, 'start_time': time}, ...]
-        """
-        if target_date is None:
-            target_date = timezone.now().date()
-        
-        # TODO: Implement your task scheduling algorithm here
-        # This should consider:
-        # - Available free time for the day
-        # - Task priorities (delta)
-        # - Due dates
-        # - Task completion percentages
-        # - Time needed (T_n)
-        
-        # Get all incomplete tasks for the user
-        incomplete_tasks = Task.objects.filter(
-            user=user,
-            is_completed=False
-        ).order_by('due_date', '-delta')
-        
-        # Placeholder implementation
-        daily_plan = []
-        for task in incomplete_tasks[:5]:  # Limit to 5 tasks for now
-            daily_plan.append({
-                'task': task,
-                'time_allotted': task.T_n * 0.2,  # 20% of task time per day
-                'start_time': timezone.now().time(),
-            })
-        
-        return daily_plan
 
 
 class TaskAssignment(models.Model):
