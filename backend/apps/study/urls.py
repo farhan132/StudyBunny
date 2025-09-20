@@ -2,17 +2,9 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # Task CRUD
-    path('tasks/', views.TaskListCreateView.as_view(), name='task-list'),
-    path('tasks/<int:pk>/', views.TaskDetailView.as_view(), name='task-detail'),
-    path('tasks/user/', views.get_user_tasks, name='get-user-tasks'),
-    path('tasks/<int:task_id>/progress/', views.update_task_progress, name='update-task-progress'),
-    path('tasks/statistics/', views.get_task_statistics, name='get-task-statistics'),
-    
-    # Daily schedule CRUD
-    path('daily-schedules/', views.DailyScheduleListCreateView.as_view(), name='daily-schedule-list'),
-    path('daily-schedules/<int:pk>/', views.DailyScheduleDetailView.as_view(), name='daily-schedule-detail'),
-    
-    # Planning endpoints
-    path('generate-daily-plan/', views.generate_daily_plan, name='generate-daily-plan'),
+    # Task management endpoints
+    path('tasks/', views.list_user_tasks, name='list-user-tasks'),
+    path('tasks/create/', views.create_task, name='create-task'),
+    path('tasks/update-by-name/', views.update_task_by_name_api, name='update-task-by-name'),
+    path('tasks/get-by-name/', views.get_task_by_name_api, name='get-task-by-name'),
 ]

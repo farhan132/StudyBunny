@@ -26,7 +26,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'apps.core',
-    'apps.users',
     'apps.study',
 ]
 
@@ -107,24 +106,3 @@ CORS_ALLOWED_ORIGINS = [
 # 0.0 = Very low intensity, 1.0 = Maximum intensity
 # Change this value anytime to adjust system behavior
 STUDYBUNNY_INTENSITY = 0.7
-
-# REST Framework settings
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.TokenAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-        'rest_framework.parsers.MultiPartParser',
-        'rest_framework.parsers.FormParser',
-    ],
-}
