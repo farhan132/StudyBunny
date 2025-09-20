@@ -9,6 +9,13 @@ function Home() {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState({
+    performanceScore: 0,
+    userIntensity: 50,
+    workHoursPercentile: 0,
+    assignmentCompletionPercent: 0,
+    howAmIDoingScore: 0
+  });
   const [newAssignment, setNewAssignment] = useState({
     name: '',
     description: '',
@@ -23,6 +30,7 @@ function Home() {
   // Fetch assignments from backend on component mount
   useEffect(() => {
     fetchAssignments();
+    fetchDashboardStats();
     
     // Cleanup function to clear timeouts when component unmounts
     return () => {
@@ -34,6 +42,86 @@ function Home() {
       }
     };
   }, []);
+
+
+  const fetchDashboardStats = async () => {
+    try {
+      // Fetch dashboard stats from backend
+      const response = await fetch('/api/dashboard/stats/', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDashboardStats(prev => ({
+          ...prev,
+          performanceScore: data.performance_score || 0,
+          workHoursPercentile: data.work_hours_percentile || 0,
+          assignmentCompletionPercent: data.assignment_completion_percent || 0,
+          howAmIDoingScore: data.how_am_i_doing_score || 0
+        }));
+      } else {
+        console.error('Failed to fetch dashboard stats');
+        // Use mock data for development
+        setDashboardStats(prev => ({
+          ...prev,
+          performanceScore: Math.floor(Math.random() * 100),
+          workHoursPercentile: 1, // Test with fixed values
+          assignmentCompletionPercent: 20,
+          howAmIDoingScore: 80
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      // Use mock data as fallback
+      setDashboardStats(prev => ({
+        ...prev,
+        performanceScore: Math.floor(Math.random() * 100),
+        workHoursPercentile: 1,
+        assignmentCompletionPercent: 20,
+        howAmIDoingScore: 80
+      }));
+    }
+  };
+
+
+  const handleIntensityChange = (newIntensity) => {
+    setDashboardStats(prev => ({
+      ...prev,
+      userIntensity: newIntensity
+    }));
+  };
+
+  // Get performance bar color based on score with gradient transitions
+  const getPerformanceBarColor = (score) => {
+    if (score >= 67) {
+      // High performance: Green gradient
+      return `linear-gradient(90deg, #10b981 0%, #059669 100%)`;
+    } else if (score >= 34) {
+      // Medium performance: Yellow gradient
+      return `linear-gradient(90deg, #f59e0b 0%, #d97706 100%)`;
+    } else {
+      // Low performance: Red gradient
+      return `linear-gradient(90deg, #ef4444 0%, #dc2626 100%)`;
+    }
+  };
+
+  // Get intensity bar color based on intensity level
+  const getIntensityBarColor = (intensity) => {
+    if (intensity >= 67) {
+      // High intensity: Navy blue
+      return '#1e40af';
+    } else if (intensity >= 34) {
+      // Medium intensity: Blue
+      return '#3b82f6';
+    } else {
+      // Low intensity: Very light blue
+      return '#93c5fd';
+    }
+  };
 
   const fetchAssignments = async () => {
     try {
@@ -412,10 +500,21 @@ function Home() {
   }, []);
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const month = date.toLocaleDateString('en-US', { month: 'short' });
-    const day = date.getDate();
-    return `${month} ${day}`;
+    try {
+      if (!dateString) return 'No date';
+      
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Invalid date';
+      }
+      
+      const month = date.toLocaleDateString('en-US', { month: 'short' });
+      const day = date.getDate();
+      return `${month} ${day}`;
+    } catch (error) {
+      console.warn('Error formatting date:', dateString, error);
+      return 'Invalid date';
+    }
   };
 
   const formatTimeLeft = (timeString) => {
@@ -440,9 +539,20 @@ function Home() {
   };
 
   const isOverdue = (dueDate) => {
-    const due = new Date(dueDate);
-    const now = new Date();
-    return due < now && due.toDateString() !== now.toDateString();
+    try {
+      if (!dueDate) return false;
+      
+      const due = new Date(dueDate);
+      if (isNaN(due.getTime())) {
+        return false;
+      }
+      
+      const now = new Date();
+      return due < now && due.toDateString() !== now.toDateString();
+    } catch (error) {
+      console.warn('Error checking overdue status:', dueDate, error);
+      return false;
+    }
   };
 
   // Sort assignments by priority from very high to low
@@ -451,6 +561,86 @@ function Home() {
     return [...assignments].sort((a, b) => {
       return priorityOrder[b.priority] - priorityOrder[a.priority];
     });
+  };
+
+  // Helper function to get ordinal suffix
+  const getOrdinalSuffix = (num) => {
+    const j = num % 10;
+    const k = num % 100;
+    if (j === 1 && k !== 11) return num + "st";
+    if (j === 2 && k !== 12) return num + "nd";
+    if (j === 3 && k !== 13) return num + "rd";
+    return num + "th";
+  };
+
+  // Radial Progress Component (Semi-circle facing upwards)
+  const RadialProgress = ({ percentage, label, color, icon, showBunny = false, bunnyImages = null, className = "", isPersonalScore = false, isHoursPercentile = false }) => {
+    const radius = 80;
+    const strokeWidth = 16;
+    const normalizedRadius = radius - strokeWidth;
+    const circumference = normalizedRadius * Math.PI; // Half circle circumference
+    const strokeDasharray = `${circumference} ${circumference}`;
+    const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+    return (
+      <div className={`radial-progress-card ${className}`}>
+        <div className="radial-progress-container">
+          {icon && <div className="radial-progress-icon">{icon}</div>}
+          <svg
+            className="radial-progress-svg"
+            width={radius * 2}
+            height={radius + 20}
+            viewBox={`0 0 ${radius * 2} ${radius + 20}`}
+          >
+            <path
+              className="radial-progress-bg"
+              stroke="#e2e8f0"
+              fill="transparent"
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+              d={`M ${strokeWidth} ${radius} A ${normalizedRadius} ${normalizedRadius} 0 0 1 ${radius * 2 - strokeWidth} ${radius}`}
+            />
+            <path
+              className="radial-progress-fill"
+              stroke={color}
+              fill="transparent"
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+              strokeDasharray={strokeDasharray}
+              strokeDashoffset={strokeDashoffset}
+              d={`M ${strokeWidth} ${radius} A ${normalizedRadius} ${normalizedRadius} 0 0 1 ${radius * 2 - strokeWidth} ${radius}`}
+            />
+          </svg>
+          {showBunny && (
+            <div className="radial-progress-image">
+              <img 
+                src={
+                  bunnyImages ? (
+                    percentage >= 66 ? bunnyImages.high : 
+                    percentage >= 33 ? bunnyImages.medium : 
+                    bunnyImages.low
+                  ) : (
+                    percentage >= 66 ? "/bunnyDone.png" : 
+                    percentage >= 33 ? "/bunnyWorking.png" : 
+                    "/bunnySleeping.png"
+                  )
+                }
+                alt="Study Bunny" 
+                className="bunny-icon"
+              />
+            </div>
+          )}
+          <div className="radial-progress-text">
+            <div className="radial-progress-percentage">
+              {isPersonalScore ? percentage : 
+               isHoursPercentile ? getOrdinalSuffix(percentage) : 
+               `${percentage}%`}
+            </div>
+            <div className="radial-progress-label">{label}</div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Edit Assignment Form Component
@@ -567,20 +757,100 @@ function Home() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <h1>Welcome to StudyBunny</h1>
-        <p>Your personal study companion to help you stay organized and productive!</p>
+      <div className="dashboard">
+        <div className="radial-progress-section">
+        <RadialProgress
+          percentage={dashboardStats.workHoursPercentile}
+          label="Hours Percentile"
+          color={
+            dashboardStats.workHoursPercentile >= 66 ? "#1e40af" : 
+            dashboardStats.workHoursPercentile >= 33 ? "#3b82f6" : 
+            "#93c5fd"
+          }
+          showBunny={true}
+          bunnyImages={{
+            low: "/bunnyDepressed.png",
+            medium: "/bunnyThoughtless.png", 
+            high: "/bunnyCool.png"
+          }}
+          className="hours-percentile"
+          isHoursPercentile={true}
+        />
+        <RadialProgress
+          percentage={dashboardStats.assignmentCompletionPercent}
+          label="Assignment Completion"
+          color={
+            dashboardStats.assignmentCompletionPercent >= 66 ? "#1e40af" : 
+            dashboardStats.assignmentCompletionPercent >= 33 ? "#3b82f6" : 
+            "#93c5fd"
+          }
+          showBunny={true}
+          className="assignment-completion"
+        />
+        <RadialProgress
+          percentage={dashboardStats.howAmIDoingScore}
+          label="Personal Score"
+          color={
+            dashboardStats.howAmIDoingScore >= 66 ? "#1e40af" : 
+            dashboardStats.howAmIDoingScore >= 33 ? "#3b82f6" : 
+            "#93c5fd"
+          }
+          showBunny={true}
+          bunnyImages={{
+            low: "/bunnySad.png",
+            medium: "/bunnyMid.png", 
+            high: "/bunnyThrilled.png"
+          }}
+          className="personal-score"
+          isPersonalScore={true}
+        />
+        </div>
+        
+        <div className="intensity-section">
+          <div className="intensity-card-small">
+            <div className="intensity-content">
+              <div className="intensity-slider-container-small">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={dashboardStats.userIntensity}
+                  onChange={(e) => handleIntensityChange(parseInt(e.target.value))}
+                  className="intensity-slider-small"
+                  style={{
+                    backgroundImage: `linear-gradient(to right, ${getIntensityBarColor(dashboardStats.userIntensity)} ${dashboardStats.userIntensity}%, #e2e8f0 ${dashboardStats.userIntensity}%)`
+                  }}
+                />
+                <div className="intensity-value-small">{dashboardStats.userIntensity}%</div>
+              </div>
+              <div className="intensity-label-small">Work Intensity</div>
+            </div>
+          </div>
+        </div>
       </div>
       
       <div className="assignments-section">
         <div className="section-header">
           <h2>Your Assignments</h2>
-          <button 
-            className="btn btn-primary add-btn"
-            onClick={() => setShowAddForm(!showAddForm)}
-          >
-            + Add Assignment
-          </button>
+          <div className="assignment-actions-header">
+            <button 
+              className="voice-ai-btn circular-btn"
+              onClick={() => {
+                // Voice AI functionality will be implemented here
+                console.log('Voice AI agent activated');
+              }}
+              title="Voice AI Agent - Edit assignments with voice commands"
+            >
+              🎤
+            </button>
+            <button 
+              className="btn btn-primary add-btn circular-btn"
+              onClick={() => setShowAddForm(!showAddForm)}
+              title="Add Assignment"
+            >
+              +
+            </button>
+          </div>
         </div>
 
         {showAddForm && (
