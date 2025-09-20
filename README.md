@@ -1,1 +1,1 @@
-This is StudyBunny 
+This is StudyBuddy
