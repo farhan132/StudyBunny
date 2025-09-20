@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom';
 import './shared.css';
 import './Home.css';
+import runningProgress from './runningProgress.png';
 
 function Home() {
   const [assignments, setAssignments] = useState([]);
@@ -756,7 +757,7 @@ function Home() {
   };
 
   return (
-    <div className="page">
+    <div className="page" style={{'--running-progress': `url(${runningProgress})`}}>
       <div className="dashboard">
         <div className="radial-progress-section">
         <RadialProgress
