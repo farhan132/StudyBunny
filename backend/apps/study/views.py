@@ -506,6 +506,63 @@ def get_statistics(request):
         today = timezone.now().date()
         today_completed = completed_tasks.filter(updated_at__date=today).count()
         
+        # Calculate weekly statistics for chart
+        from datetime import timedelta
+        weekly_stats = []
+        for i in range(7):
+            day = today - timedelta(days=6-i)
+            day_completed = completed_tasks.filter(updated_at__date=day).count()
+            day_total_hours = 0
+            day_tasks = all_tasks.filter(created_at__date=day)
+            for task in day_tasks:
+                if task.is_completed:
+                    day_total_hours += task.T_n.total_seconds() / 3600
+            
+            weekly_stats.append({
+                'date': day.strftime('%Y-%m-%d'),
+                'day_name': day.strftime('%a'),
+                'completed_tasks': day_completed,
+                'study_hours': round(day_total_hours, 1)
+            })
+        
+        # Calculate streak (consecutive days with completed tasks)
+        streak = 0
+        current_date = today
+        while True:
+            day_completed_count = completed_tasks.filter(updated_at__date=current_date).count()
+            if day_completed_count > 0:
+                streak += 1
+                current_date -= timedelta(days=1)
+            else:
+                break
+        
+        # Calculate achievements
+        achievements = []
+        if completion_rate >= 90:
+            achievements.append({
+                'icon': '🎯',
+                'title': 'Completion Master',
+                'description': f'{completion_rate}% completion rate achieved'
+            })
+        if streak >= 3:
+            achievements.append({
+                'icon': '🔥',
+                'title': 'Streak Champion',
+                'description': f'{streak} days in a row with completed tasks'
+            })
+        if today_completed >= 3:
+            achievements.append({
+                'icon': '⚡',
+                'title': 'Daily Achiever',
+                'description': f'{today_completed} tasks completed today'
+            })
+        if intensity_score >= 70:
+            achievements.append({
+                'icon': '🌟',
+                'title': 'High Performer',
+                'description': f'{intensity_score}% intensity score'
+            })
+        
         return Response({
             'success': True,
             'statistics': {
@@ -515,7 +572,10 @@ def get_statistics(request):
                 'total_study_hours': round(total_hours, 1),
                 'intensity_score': intensity_score,
                 'assignments_done_today': today_completed,
-                'current_intensity': intensity
+                'current_intensity': intensity,
+                'streak_days': streak,
+                'weekly_stats': weekly_stats,
+                'achievements': achievements
             }
         })
         

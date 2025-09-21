@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navigation from './components/Navigation';
 import LoadingScreen from './components/LoadingScreen';
 import Home from './pages/Home';
+import Tasks from './pages/Tasks';
 import Calendar from './pages/Calendar';
 import Statistics from './pages/Statistics';
 import Notifications from './pages/Notifications';
@@ -39,6 +40,7 @@ function App() {
         <Navigation />
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/tasks" element={<Tasks />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/statistics" element={<Statistics />} />
           <Route path="/notifications" element={<Notifications />} />

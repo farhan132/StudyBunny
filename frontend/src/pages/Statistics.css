@@ -639,3 +639,145 @@
     font-size: 2rem;
   }
 }
+
+
+/* Enhanced background for Statistics page */
+.statistics-page {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 20s ease infinite;
+  min-height: 100vh;
+}
+
+/* Loading and Error States for Statistics */
+.loading-stats, .error-stats {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  margin: 40px 0;
+}
+
+.loading-spinner {
+  font-size: 18px;
+  color: #4f46e5;
+  font-weight: 600;
+  animation: pulse 2s infinite;
+}
+
+.error-stats {
+  flex-direction: column;
+  gap: 16px;
+}
+
+.error-message {
+  font-size: 16px;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.retry-btn {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.retry-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);
+}
+
+/* Enhanced stats grid for 5 cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+/* Today tasks card styling */
+.stat-card.today-tasks .card-icon {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.stat-card.today-tasks {
+  border-left: 4px solid #10b981;
+}
+
+
+
+/* No achievements placeholder */
+.no-achievements {
+  width: 100%;
+}
+
+.achievement-card.placeholder {
+  opacity: 0.6;
+  border: 2px dashed #e5e7eb;
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+}
+
+.achievement-card.placeholder .achievement-icon {
+  opacity: 0.5;
+}
+
+.achievement-card.placeholder h4 {
+  color: #6b7280;
+}
+
+.achievement-card.placeholder p {
+  color: #9ca3af;
+}
+
+
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Enhanced stat cards with vibrant colors */
+.stat-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%) !important;
+  backdrop-filter: blur(20px) !important;
+  border-radius: 20px !important;
+  padding: 30px !important;
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+.stat-card:hover {
+  transform: translateY(-10px) scale(1.03) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Vibrant card-specific colors */
+.stat-card.study-hours {
+  border-left: 6px solid #ff6b6b !important;
+  box-shadow: 0 15px 50px rgba(255, 107, 107, 0.2) !important;
+}
+
+.stat-card.completed-tasks {
+  border-left: 6px solid #4ecdc4 !important;
+  box-shadow: 0 15px 50px rgba(78, 205, 196, 0.2) !important;
+}
+
+.stat-card.streak {
+  border-left: 6px solid #45b7d1 !important;
+  box-shadow: 0 15px 50px rgba(69, 183, 209, 0.2) !important;
+}
+
+.stat-card.today-tasks {
+  border-left: 6px solid #96ceb4 !important;
+  box-shadow: 0 15px 50px rgba(150, 206, 180, 0.2) !important;
+}
+
