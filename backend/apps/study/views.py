@@ -578,21 +578,27 @@ def get_dashboard_stats(request):
         try:
             schedule_result = generate_14_day_schedule(demo_user)
             if schedule_result and 'minimum_required_intensity' in schedule_result:
-                required_intensity = schedule_result['minimum_required_intensity']
-                print(f"Dashboard stats - Required intensity from 14-day schedule: {required_intensity}")
+                minimum_required_intensity = schedule_result['minimum_required_intensity']
+                print(f"Dashboard stats - Minimum required intensity from 14-day schedule: {minimum_required_intensity}")
             else:
-                required_intensity = 0.5  # Default if no simulation data
-                print(f"Dashboard stats - Using default required intensity: {required_intensity}")
+                minimum_required_intensity = 0.5  # Default if no simulation data
+                print(f"Dashboard stats - Using default minimum required intensity: {minimum_required_intensity}")
         except Exception as e:
             print(f"Error getting 14-day schedule intensity: {e}")
-            required_intensity = 0.5  # Default on error
+            minimum_required_intensity = 0.5  # Default on error
         
-        # Calculate Personal Score based on required intensity
-        # Lower required intensity = higher score
-        # 0.5 required intensity = 75 score
-        # Formula: Score = 100 - (required_intensity * 75)
+        # Get the actual intensity being used (same logic as in 14-day schedule)
+        from apps.core.intensity import get_intensity_info
+        intensity_info = get_intensity_info()
+        actual_intensity = max(minimum_required_intensity, intensity_info['intensityXcap'])
+        print(f"Dashboard stats - Actual intensity being used: {actual_intensity}")
+        
+        # Calculate Personal Score based on actual intensity being used
+        # Lower actual intensity = higher score
+        # 0.5 actual intensity = 75 score
+        # Formula: Score = 100 - (actual_intensity * 75)
         # This gives: 0.5 -> 62.5, 0.0 -> 100, 1.0 -> 25, 0.8 -> 40
-        personal_score = max(0, min(100, 100 - (required_intensity * 75)))
+        personal_score = max(0, min(100, 100 - (actual_intensity * 75)))
         
         # Calculate other stats
         total_tasks = Task.objects.filter(user=demo_user).count()
@@ -622,7 +628,8 @@ def get_dashboard_stats(request):
             'assignment_completion_percent': tasks_completed_last_7_days,
             'how_am_i_doing_score': round(personal_score, 1),
             'current_intensity': current_intensity,
-            'required_intensity': required_intensity,
+            'minimum_required_intensity': minimum_required_intensity,
+            'actual_intensity_used': actual_intensity,
             'total_tasks': total_tasks,
             'completed_tasks': completed_tasks,
             'tasks_completed_last_7_days': tasks_completed_last_7_days

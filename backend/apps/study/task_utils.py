@@ -6,6 +6,7 @@ from django.utils import timezone
 from datetime import datetime, timedelta, date
 from .models import Task
 from apps.core.models import TimeCalculation
+from apps.core.intensity import get_intensity_info
 import math
 
 
@@ -1338,6 +1339,11 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
         
         minimum_intensity = min_intensity_result['minimum_intensity']
         print(f"✅ Minimum intensity found: {minimum_intensity:.3f}")
+
+        # Use current global intensity if it's higher than minimum required
+        intensity_info = get_intensity_info()
+        current_intensity = intensity_info['intensityXcap']  # Use the calculated intensity cap
+        minimum_intensity = max(minimum_intensity, current_intensity)
         
         # Track task progress across the 14-day schedule
         task_progress = {}
