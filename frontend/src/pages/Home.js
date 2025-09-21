@@ -32,6 +32,7 @@ function Home() {
 
   const [isRecording, setIsRecording] = useState(false);
   const [recognition, setRecognition] = useState(null);
+  const [isRefreshingAfterVoice, setIsRefreshingAfterVoice] = useState(false);
 
   const [newAssignment, setNewAssignment] = useState({
     name: '',
@@ -370,14 +371,37 @@ function Home() {
       console.log('🎤 Processing voice command:', command);
       const response = await apiService.processVoiceCommand(command);
       console.log('🎤 Voice command response:', response);
-      alert(`Voice command processed: "${command}"`);
-      // Refresh assignments to show any changes
-      console.log('🔄 Refreshing assignments...');
+      
+      // Show success message
+      alert(`✅ Voice command processed: "${command}"`);
+      
+      // Set loading state for refresh
+      setIsRefreshingAfterVoice(true);
+      
+      // Comprehensive refresh of all data to show changes immediately
+      console.log('🔄 Refreshing all data after voice command...');
+      
+      // Refresh assignments (tasks)
       await fetchAssignments();
       console.log('✅ Assignments refreshed');
+      
+      // Refresh dashboard stats (completion percentages, scores)
+      await fetchDashboardStats();
+      console.log('✅ Dashboard stats refreshed');
+      
+      // Refresh 14-day schedule to reflect task completion changes
+      await fetch14DaySchedule();
+      console.log('✅ Schedule refreshed');
+      
+      console.log('🎉 All data refreshed successfully after voice command');
+      
+      // Clear loading state
+      setIsRefreshingAfterVoice(false);
+      
     } catch (error) {
-      console.error('Error processing voice command:', error);
-      alert(`Error processing command: ${error.message}`);
+      console.error('❌ Error processing voice command:', error);
+      alert(`❌ Error processing command: ${error.message}`);
+      setIsRefreshingAfterVoice(false);
     }
   };
 
@@ -1264,6 +1288,12 @@ function Home() {
             >
               {isRecording ? '⏹️' : '🎤'}
             </button>
+            {isRefreshingAfterVoice && (
+              <div className="voice-refresh-indicator" title="Refreshing data after voice command...">
+                <span className="spinner">🔄</span>
+                <span className="refresh-text">Updating...</span>
+              </div>
+            )}
             <button 
               className="btn btn-primary add-btn circular-btn"
               onClick={() => setShowAddForm(!showAddForm)}
