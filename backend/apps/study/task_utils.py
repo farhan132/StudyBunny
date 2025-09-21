@@ -314,13 +314,19 @@ def can_complete_tasks_with_intensity_simulation(user, intensity_value, start_da
             day_free_time = TimeCalculation.get_free_d(current_date, intensity_value=intensity_value)
             total_time_available += day_free_time
             
-            # Get tasks that should be worked on this date (due within next 7 days)
+            # Get tasks that should be worked on this date (due on or after current date, within next 7 days)
             tasks_due_today = tasks.filter(
-                due_date__gt=current_date,
+                due_date__gte=current_date,
                 due_date__lte=current_date + timedelta(days=7)
             )
             
+            print(f"   🔍 Tasks due on {current_date}: {tasks_due_today.count()}")
+            for task in tasks_due_today:
+                print(f"      • {task.title} (due: {task.due_date}, completed: {task.completed_so_far}%)")
+            
             if not tasks_due_today.exists():
+                print(f"   ⚠️  No tasks due on {current_date}, skipping...")
+                current_date += timedelta(days=1)
                 continue
             
             # Filter out tasks that are already complete
@@ -477,12 +483,16 @@ def can_complete_tasks_with_intensity(user, intensity_value, start_date=None, en
             # Calculate available free time for this day with the given intensity
             try:
                 # Get free time for this day using the provided intensity value
-                if current_date == timezone.now().date():
+                # Use user's timezone for today comparison
+                user_today = timezone.now().astimezone(timezone.get_current_timezone()).date()
+                if current_date == user_today:
                     # For today, use get_free_today with intensity parameter
                     day_free_time = TimeCalculation.get_free_today(intensity_value=intensity_value)
+                    print(f"   📅 Today ({current_date}): {day_free_time:.2f} hours free time")
                 else:
                     # For future days, use get_free_d with intensity parameter
                     day_free_time = TimeCalculation.get_free_d(current_date, intensity_value=intensity_value)
+                    print(f"   📅 {current_date}: {day_free_time:.2f} hours free time")
             except ValueError as e:
                 return {
                     'success': False,
@@ -1398,10 +1408,11 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
                         task_progress[task.id] = new_progress
                         
                     else:
-                        # Partial completion
-                        if remaining_time > timedelta(minutes=30):
+                        # Partial completion - schedule work if there's any meaningful time left
+                        if remaining_time > timedelta(minutes=15):
+                            current_progress = task_progress.get(task.id, 0.0)
                             partial_completion = remaining_time / task.T_n * 100
-                            new_progress = min(100.0, task_progress.get(task.id, 0.0) + partial_completion)
+                            new_progress = min(100.0, current_progress + partial_completion)
                             
                             daily_plan.append({
                                 'task_id': task.id,
@@ -1410,7 +1421,7 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
                                 'priority': task.delta,
                                 'due_date': task.due_date,
                                 'due_time': task.due_time,
-                                'completion_before': task_progress.get(task.id, 0.0),
+                                'completion_before': current_progress,
                                 'time_allotted': remaining_time,
                                 'time_needed_total': str(task.T_n),
                                 'completion_after': new_progress,
@@ -1475,12 +1486,13 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
             'end_date': end_date,
             'total_tasks_scheduled': total_tasks_scheduled,
             'intensity_used': avg_intensity,
-                    'completion_analysis': {
-                        'total_tasks': total_tasks,
-                        'completed_tasks': scheduled_tasks,
-                        'remaining_tasks': remaining_tasks,
-                        'completion_rate': completion_rate
-                    },
+            'minimum_required_intensity': minimum_intensity,
+            'completion_analysis': {
+                'total_tasks': total_tasks,
+                'completed_tasks': scheduled_tasks,
+                'remaining_tasks': remaining_tasks,
+                'completion_rate': completion_rate
+            },
             'message': f"✅ 14-day schedule generated with {total_tasks_scheduled} tasks scheduled across {sum(1 for day in schedule if day)} days"
         }
         

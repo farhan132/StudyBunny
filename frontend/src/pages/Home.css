@@ -1646,3 +1646,111 @@
   margin-left: 4px;
   opacity: 0.7;
 }
+
+/* Simple assignment completion display */
+.assignment-completion-simple {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  padding: 30px;
+  color: white;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+  min-height: 200px;
+  position: relative;
+  overflow: hidden;
+}
+
+.assignment-completion-simple::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+.completion-number {
+  font-size: 4rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 10px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.completion-label {
+  font-size: 1.1rem;
+  font-weight: 500;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+@keyframes shimmer {
+  0%, 100% {
+    transform: translateX(-100%) translateY(-100%) rotate(45deg);
+  }
+  50% {
+    transform: translateX(100%) translateY(100%) rotate(45deg);
+  }
+}
+
+/* Progress slider enhancements */
+.progress-section {
+  margin: 16px 0;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  align-items: center;
+}
+
+.current-progress {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1.1rem;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.projected-progress {
+  color: #e5e7eb;
+  font-style: italic;
+  font-size: 0.85rem;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.progress-slider-container {
+  position: relative;
+  margin: 8px 0;
+}
+
+.projected-indicator {
+  position: absolute;
+  top: 50%;
+  transform: translateX(-50%) translateY(-50%);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.projected-line {
+  width: 3px;
+  height: 20px;
+  background: #3b82f6;
+  margin: 0 auto;
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.7);
+}
