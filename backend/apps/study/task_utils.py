@@ -224,7 +224,35 @@ def get_task_by_name(user, task_name):
         dict: Task data or error message
     """
     try:
-        task = Task.objects.get(user=user, title=task_name)
+        # First try exact match
+        try:
+            task = Task.objects.get(user=user, title=task_name)
+        except Task.DoesNotExist:
+            # Try partial match - look for tasks that contain the task name
+            tasks = Task.objects.filter(user=user, title__icontains=task_name)
+            if tasks.count() == 1:
+                task = tasks.first()
+            elif tasks.count() > 1:
+                return {
+                    'success': False,
+                    'error': f'Multiple tasks found containing "{task_name}". Please be more specific.',
+                    'suggestions': [t.title for t in tasks]
+                }
+            else:
+                # Try reverse partial match - look for tasks where the title is contained in the task name
+                tasks = Task.objects.filter(user=user)
+                matching_tasks = [t for t in tasks if task_name.lower() in t.title.lower()]
+                if len(matching_tasks) == 1:
+                    task = matching_tasks[0]
+                elif len(matching_tasks) > 1:
+                    return {
+                        'success': False,
+                        'error': f'Multiple tasks found containing "{task_name}". Please be more specific.',
+                        'suggestions': [t.title for t in matching_tasks]
+                    }
+                else:
+                    raise Task.DoesNotExist()
+        
         return {
             'success': True,
             'task': {

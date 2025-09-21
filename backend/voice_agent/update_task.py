@@ -89,19 +89,77 @@ def delete_task(task_name=None, parameters=None, user=None):
         return False
     
     try:
-        # Find the task by name for the specific user
-        task = Task.objects.get(user=user, title=task_name)
+        # First try exact match
+        try:
+            task = Task.objects.get(user=user, title=task_name)
+        except Task.DoesNotExist:
+            # Try partial match - look for tasks that contain the task name
+            tasks = Task.objects.filter(user=user, title__icontains=task_name)
+            if tasks.count() == 1:
+                task = tasks.first()
+                print(f"🔍 Found task by partial match: '{task.title}'")
+            elif tasks.count() > 1:
+                print(f"❌ Multiple tasks found containing '{task_name}':")
+                for t in tasks:
+                    print(f"   - {t.title}")
+                return False
+            else:
+                # Try reverse partial match - look for tasks where the title is contained in the task name
+                tasks = Task.objects.filter(user=user)
+                matching_tasks = [t for t in tasks if t.title.lower() in task_name.lower()]
+                
+                # If no direct match, try word-based matching
+                if not matching_tasks:
+                    task_name_words = set(task_name.lower().split())
+                    task_matches = []
+                    for t in tasks:
+                        title_words = set(t.title.lower().split())
+                        # Check if any significant words from the title appear in the task name
+                        common_words = title_words.intersection(task_name_words)
+                        # Remove common words like "the", "a", "an", "and", "or", "of", "in", "on", "at", "to", "for"
+                        common_words = common_words - {'the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'for', 'assignment', 'task', 'work'}
+                        if len(common_words) > 0:
+                            task_matches.append((t, len(common_words), common_words))
+                            print(f"🔍 Found task by word matching: '{t.title}' (common words: {common_words}, score: {len(common_words)})")
+                    
+                    # Sort by number of matching words (descending) and take the best match
+                    if task_matches:
+                        task_matches.sort(key=lambda x: x[1], reverse=True)
+                        best_match = task_matches[0]
+                        # Only use this match if it has a reasonable number of common words or if it's the only match
+                        if best_match[1] >= 2 or len(task_matches) == 1:
+                            matching_tasks.append(best_match[0])
+                        else:
+                            # If multiple matches with low scores, show all options
+                            matching_tasks.extend([match[0] for match in task_matches])
+                
+                if len(matching_tasks) == 1:
+                    task = matching_tasks[0]
+                    print(f"🔍 Found task by reverse partial match: '{task.title}'")
+                elif len(matching_tasks) > 1:
+                    print(f"❌ Multiple tasks found containing '{task_name}':")
+                    for t in matching_tasks:
+                        print(f"   - {t.title}")
+                    return False
+                else:
+                    raise Task.DoesNotExist()
         
         # Mark task as completed instead of deleting
         task.is_completed = True
         task.completed_so_far = 100.0
         task.save()
         
-        print(f"✅ Task '{task_name}' marked as completed!")
+        print(f"✅ Task '{task.title}' marked as completed!")
         return True
         
     except Task.DoesNotExist:
         print(f"❌ Task '{task_name}' not found for user {user.username}")
+        # Show available tasks
+        available_tasks = Task.objects.filter(user=user, is_completed=False)
+        if available_tasks.exists():
+            print("📋 Available incomplete tasks:")
+            for t in available_tasks:
+                print(f"   - {t.title}")
         return False
     except Task.MultipleObjectsReturned:
         print(f"❌ Multiple tasks found with name '{task_name}'. Please be more specific.")
@@ -235,7 +293,7 @@ def process_voice_command(text, user=None):
     
     try:
         # Configure Gemini
-        load_dotenv()
+        load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
             genai.configure(api_key=api_key)

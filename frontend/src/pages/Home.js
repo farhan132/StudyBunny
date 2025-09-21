@@ -30,6 +30,9 @@ function Home() {
     configured: false
   });
 
+  const [isRecording, setIsRecording] = useState(false);
+  const [recognition, setRecognition] = useState(null);
+
   const [newAssignment, setNewAssignment] = useState({
     name: '',
     description: '',
@@ -47,6 +50,46 @@ function Home() {
     fetchDashboardStats();
     fetch14DaySchedule();
     checkCanvasConfig();
+    
+    // Initialize Web Speech API
+    console.log('🎤 Initializing Web Speech API');
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      console.log('✅ Speech recognition supported');
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognitionInstance = new SpeechRecognition();
+      
+      recognitionInstance.continuous = false;
+      recognitionInstance.interimResults = false;
+      recognitionInstance.lang = 'en-US';
+      console.log('🎤 Speech recognition instance created');
+      
+      recognitionInstance.onstart = () => {
+        console.log('🎤 Speech recognition started');
+        setIsRecording(true);
+      };
+      
+      recognitionInstance.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log('🎤 Speech recognition result:', transcript);
+        handleVoiceCommand(transcript);
+      };
+      
+      recognitionInstance.onerror = (event) => {
+        console.error('❌ Speech recognition error:', event.error);
+        setIsRecording(false);
+        alert(`Speech recognition error: ${event.error}`);
+      };
+      
+      recognitionInstance.onend = () => {
+        console.log('🎤 Speech recognition ended');
+        setIsRecording(false);
+      };
+      
+      setRecognition(recognitionInstance);
+      console.log('🎤 Recognition instance set in state');
+    } else {
+      console.log('❌ Speech recognition not supported');
+    }
     
     // Cleanup function to clear timeouts when component unmounts
     return () => {
@@ -322,40 +365,40 @@ function Home() {
     }
   };
 
-  const handleVoiceAgent = async () => {
+  const handleVoiceCommand = async (command) => {
     try {
-      // Try to capture voice input
-      const response = await apiService.captureVoiceInput();
-      
-      if (response.success) {
-        alert(`Voice command processed: "${response.voice_text}"`);
-        // Refresh assignments to show any changes
-        fetchAssignments();
-      } else {
-        // Fallback to text input
-        const command = prompt('Enter your voice command (e.g., "I finished my math homework"):');
-        if (command) {
-          await apiService.processVoiceCommand(command);
-          alert('Voice command processed!');
-          // Refresh assignments to show any changes
-          fetchAssignments();
-        }
-      }
+      console.log('🎤 Processing voice command:', command);
+      const response = await apiService.processVoiceCommand(command);
+      console.log('🎤 Voice command response:', response);
+      alert(`Voice command processed: "${command}"`);
+      // Refresh assignments to show any changes
+      console.log('🔄 Refreshing assignments...');
+      await fetchAssignments();
+      console.log('✅ Assignments refreshed');
     } catch (error) {
-      console.error('Error with voice agent:', error);
-      // Fallback to text input
-      const command = prompt('Voice not available. Enter your command (e.g., "I finished my math homework"):');
-      if (command) {
-        try {
-          await apiService.processVoiceCommand(command);
-          alert('Command processed!');
-          // Refresh assignments to show any changes
-          fetchAssignments();
-        } catch (error) {
-          console.error('Error processing command:', error);
-          alert('Error processing command. Please try again.');
-        }
-      }
+      console.error('Error processing voice command:', error);
+      alert(`Error processing command: ${error.message}`);
+    }
+  };
+
+  const handleVoiceAgent = () => {
+    console.log('🎤 Voice agent button clicked');
+    console.log('🎤 Recognition object:', recognition);
+    console.log('🎤 Is recording:', isRecording);
+    
+    if (!recognition) {
+      console.log('❌ No recognition object available');
+      alert('Speech recognition not supported in this browser. Please use Chrome or Edge.');
+      return;
+    }
+
+    if (isRecording) {
+      console.log('🛑 Stopping recording');
+      recognition.stop();
+      setIsRecording(false);
+    } else {
+      console.log('🎤 Starting recording');
+      recognition.start();
     }
   };
 
@@ -469,11 +512,15 @@ function Home() {
     try {
       setLoading(true);
       const response = await apiService.getTasks();
+      console.log('📋 Fetched tasks response:', response);
       
       if (response.success) {
         const allAssignments = response.tasks.map(task => apiService.convertBackendTaskToFrontend(task));
+        console.log('📋 All assignments after conversion:', allAssignments);
         const pending = allAssignments.filter(a => a.status !== 'completed');
         const completed = allAssignments.filter(a => a.status === 'completed');
+        console.log('📋 Pending assignments:', pending);
+        console.log('📋 Completed assignments:', completed);
         setAssignments(pending);
         setCompletedAssignments(completed);
       } else {
@@ -1211,11 +1258,11 @@ function Home() {
               🎨
             </button>
             <button 
-              className="voice-ai-btn circular-btn"
+              className={`voice-ai-btn circular-btn ${isRecording ? 'recording' : ''}`}
               onClick={handleVoiceAgent}
-              title="Voice AI Agent - Edit assignments with voice commands"
+              title={isRecording ? "Stop Recording" : "Voice AI Agent - Edit assignments with voice commands"}
             >
-              🎤
+              {isRecording ? '⏹️' : '🎤'}
             </button>
             <button 
               className="btn btn-primary add-btn circular-btn"

@@ -1466,6 +1466,27 @@
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
+.voice-ai-btn.recording {
+  background: linear-gradient(135deg, #ff4757 0%, #ff3838 100%);
+  box-shadow: 0 4px 20px rgba(255, 71, 87, 0.5);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 4px 20px rgba(255, 71, 87, 0.5);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 6px 25px rgba(255, 71, 87, 0.7);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 4px 20px rgba(255, 71, 87, 0.5);
+  }
+}
+
 /* Circular button styles */
 .circular-btn {
   width: 50px !important;
@@ -1993,6 +2014,8 @@
 .modal-actions .btn-primary:hover {
   background: #2563eb;
   border-color: #2563eb;
+}
+
 /* Bunny running animation */
 @keyframes bunnyRunning {
   0%, 100% {

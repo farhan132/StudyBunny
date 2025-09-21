@@ -74,7 +74,7 @@ class ApiService {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify({
-          user_id: 1, // Demo user ID
+          user_id: 3, // Demo user ID
           command_text: command,
         }),
       });
@@ -85,20 +85,10 @@ class ApiService {
     }
   }
 
+  // Voice input is now handled by browser Web Speech API
+  // This method is kept for backward compatibility but not used
   async captureVoiceInput() {
-    try {
-      const response = await fetch(`${this.baseURL}/voice/input/`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({
-          user_id: 1, // Demo user ID
-        }),
-      });
-      return await this.handleResponse(response);
-    } catch (error) {
-      console.error('Error capturing voice input:', error);
-      throw error;
-    }
+    throw new Error('Voice input is now handled by browser Web Speech API');
   }
 
   // Intensity management

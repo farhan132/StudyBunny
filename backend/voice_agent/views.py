@@ -21,9 +21,25 @@ def voice_command_api(request):
     """
     API endpoint to process voice commands for task updates
     """
+    print("🎤 VOICE COMMAND API CALLED")
+    print(f"   Method: {request.method}")
+    print(f"   Headers: {dict(request.headers)}")
+    print(f"   Body: {request.body}")
+    
     try:
+        # Parse JSON data
+        try:
+            data = json.loads(request.body)
+            print(f"   Parsed data: {data}")
+        except json.JSONDecodeError:
+            print("   ❌ Invalid JSON data")
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON data'
+            }, status=400)
+        
         # Get user from request (you might need to adjust this based on your auth system)
-        user_id = request.POST.get('user_id') or request.headers.get('X-User-ID')
+        user_id = data.get('user_id') or request.headers.get('X-User-ID')
         if not user_id:
             return JsonResponse({
                 'success': False,
@@ -39,7 +55,7 @@ def voice_command_api(request):
             }, status=404)
         
         # Get voice command text
-        command_text = request.POST.get('command_text')
+        command_text = data.get('command_text')
         if not command_text:
             return JsonResponse({
                 'success': False,
@@ -47,7 +63,9 @@ def voice_command_api(request):
             }, status=400)
         
         # Process the voice command
-        process_voice_command(command_text, user)
+        print(f"   Processing command: '{command_text}' for user: {user.username}")
+        result = process_voice_command(command_text, user)
+        print(f"   Command processing result: {result}")
         
         return JsonResponse({
             'success': True,
@@ -67,8 +85,17 @@ def voice_input_api(request):
     API endpoint to capture voice input and process it
     """
     try:
+        # Parse JSON data
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid JSON data'
+            }, status=400)
+        
         # Get user from request
-        user_id = request.POST.get('user_id') or request.headers.get('X-User-ID')
+        user_id = data.get('user_id') or request.headers.get('X-User-ID')
         if not user_id:
             return JsonResponse({
                 'success': False,
@@ -83,23 +110,12 @@ def voice_input_api(request):
                 'error': 'User not found'
             }, status=404)
         
-        # Get voice input
-        voice_text = get_voice_input()
-        
-        if voice_text:
-            # Process the voice command
-            process_voice_command(voice_text, user)
-            
-            return JsonResponse({
-                'success': True,
-                'voice_text': voice_text,
-                'message': 'Voice input captured and processed successfully'
-            })
-        else:
-            return JsonResponse({
-                'success': False,
-                'error': 'No voice input captured'
-            }, status=400)
+        # This endpoint is no longer needed since we use browser speech recognition
+        # But keeping it for backward compatibility
+        return JsonResponse({
+            'success': False,
+            'error': 'This endpoint is deprecated. Use browser speech recognition instead.'
+        }, status=400)
         
     except Exception as e:
         return JsonResponse({
