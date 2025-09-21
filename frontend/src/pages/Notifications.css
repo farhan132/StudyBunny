@@ -617,3 +617,56 @@ input:checked + .slider:before {
     font-size: 0.9rem;
   }
 }
+
+/* Loading and Error States for Notifications */
+.loading-notifications, .error-notifications {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.loading-spinner {
+  font-size: 18px;
+  color: #4f46e5;
+  font-weight: 600;
+  animation: pulse 2s infinite;
+}
+
+.error-message {
+  font-size: 16px;
+  color: #dc2626;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 16px 24px;
+  border-radius: 12px;
+}
+
+.retry-btn, .test-btn {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.retry-btn:hover, .test-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);
+}
+
+.test-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  margin-top: 16px;
+}
+
+.test-btn:hover {
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+}
+

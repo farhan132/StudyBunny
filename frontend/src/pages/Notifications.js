@@ -5,84 +5,107 @@ import './Notifications.css';
 import apiService from '../services/api';
 
 function Notifications() {
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      type: 'success',
-      title: 'Study Session Complete!',
-      message: 'Great job! You completed your math study session.',
-      time: '2 hours ago',
-      icon: '🎉',
-      read: false
-    },
-    {
-      id: 2,
-      type: 'reminder',
-      title: 'Break Time!',
-      message: 'Time for your scheduled break! Take a 10-minute rest.',
-      time: '1 day ago',
-      icon: '⏰',
-      read: false
-    },
-    {
-      id: 3,
-      type: 'achievement',
-      title: 'Goal Achieved!',
-      message: 'You\'ve reached your weekly study goal!',
-      time: '2 days ago',
-      icon: '🏆',
-      read: true
-    },
-    {
-      id: 4,
-      type: 'motivation',
-      title: 'Keep Going!',
-      message: 'You\'re on a 5-day streak! Don\'t stop now.',
-      time: '3 days ago',
-      icon: '🔥',
-      read: true
-    }
-  ]);
-
+  const [notifications, setNotifications] = useState([]);
   const [settings, setSettings] = useState({
-    studyReminders: true,
-    breakAlerts: true,
-    progressReports: false,
-    goalAchievements: true,
-    motivationMessages: true,
-    soundEnabled: true
+    study_reminders: true,
+    break_alerts: true,
+    progress_reports: false,
+    goal_achievements: true,
+    motivation_messages: true,
+    sound_enabled: true
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Fetch 14-day schedule to trigger simulation
-    const fetch14DaySchedule = async () => {
-      try {
-        await apiService.get14DaySchedule();
-      } catch (error) {
-        console.error('Error fetching 14-day schedule:', error);
-      }
-    };
-    
-    fetch14DaySchedule();
+    fetchNotifications();
+    fetchNotificationSettings();
   }, []);
 
-  const handleSettingChange = (setting) => {
-    setSettings(prev => ({
-      ...prev,
-      [setting]: !prev[setting]
-    }));
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getNotifications();
+      console.log('📢 Notifications response:', response);
+      
+      if (response.success) {
+        // Convert backend format to frontend format
+        const formattedNotifications = response.notifications.map(notif => ({
+          id: notif.id,
+          type: notif.type,
+          title: notif.title,
+          message: notif.message,
+          time: notif.time_ago,
+          icon: notif.icon,
+          read: notif.is_read
+        }));
+        setNotifications(formattedNotifications);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      setError('Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const markAsRead = (id) => {
-    setNotifications(prev => 
-      prev.map(notif => 
-        notif.id === id ? { ...notif, read: true } : notif
-      )
-    );
+  const fetchNotificationSettings = async () => {
+    try {
+      const response = await apiService.getNotificationSettings();
+      if (response.success) {
+        setSettings(response.settings);
+      }
+    } catch (error) {
+      console.error('Error fetching notification settings:', error);
+    }
   };
 
-  const clearAllNotifications = () => {
-    setNotifications([]);
+  const handleSettingChange = async (setting) => {
+    const newSettings = {
+      ...settings,
+      [setting]: !settings[setting]
+    };
+    
+    try {
+      setSettings(newSettings);
+      await apiService.updateNotificationSettings(newSettings);
+      console.log('✅ Notification settings updated');
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      // Revert on error
+      setSettings(settings);
+    }
+  };
+
+  const markAsRead = async (id) => {
+    try {
+      await apiService.markNotificationRead(id);
+      setNotifications(prev => 
+        prev.map(notif => 
+          notif.id === id ? { ...notif, read: true } : notif
+        )
+      );
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    try {
+      await apiService.clearAllNotifications();
+      setNotifications([]);
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+    }
+  };
+
+  const generateTestNotifications = async () => {
+    try {
+      await apiService.generateTestNotifications();
+      await fetchNotifications(); // Refresh the list
+    } catch (error) {
+      console.error('Error generating test notifications:', error);
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -117,8 +140,8 @@ function Notifications() {
               <div className="toggle-switch">
                 <input 
                   type="checkbox" 
-                  checked={settings.studyReminders}
-                  onChange={() => handleSettingChange('studyReminders')}
+                  checked={settings.study_reminders}
+                  onChange={() => handleSettingChange('study_reminders')}
                 />
                 <span className="slider"></span>
               </div>
@@ -135,8 +158,8 @@ function Notifications() {
               <div className="toggle-switch">
                 <input 
                   type="checkbox" 
-                  checked={settings.breakAlerts}
-                  onChange={() => handleSettingChange('breakAlerts')}
+                  checked={settings.break_alerts}
+                  onChange={() => handleSettingChange('break_alerts')}
                 />
                 <span className="slider"></span>
               </div>
@@ -153,8 +176,8 @@ function Notifications() {
               <div className="toggle-switch">
                 <input 
                   type="checkbox" 
-                  checked={settings.progressReports}
-                  onChange={() => handleSettingChange('progressReports')}
+                  checked={settings.progress_reports}
+                  onChange={() => handleSettingChange('progress_reports')}
                 />
                 <span className="slider"></span>
               </div>
@@ -171,8 +194,8 @@ function Notifications() {
               <div className="toggle-switch">
                 <input 
                   type="checkbox" 
-                  checked={settings.goalAchievements}
-                  onChange={() => handleSettingChange('goalAchievements')}
+                  checked={settings.goal_achievements}
+                  onChange={() => handleSettingChange('goal_achievements')}
                 />
                 <span className="slider"></span>
               </div>
@@ -189,8 +212,8 @@ function Notifications() {
               <div className="toggle-switch">
                 <input 
                   type="checkbox" 
-                  checked={settings.motivationMessages}
-                  onChange={() => handleSettingChange('motivationMessages')}
+                  checked={settings.motivation_messages}
+                  onChange={() => handleSettingChange('motivation_messages')}
                 />
                 <span className="slider"></span>
               </div>
@@ -207,8 +230,8 @@ function Notifications() {
               <div className="toggle-switch">
                 <input 
                   type="checkbox" 
-                  checked={settings.soundEnabled}
-                  onChange={() => handleSettingChange('soundEnabled')}
+                  checked={settings.sound_enabled}
+                  onChange={() => handleSettingChange('sound_enabled')}
                 />
                 <span className="slider"></span>
               </div>
@@ -221,6 +244,9 @@ function Notifications() {
           <div className="section-header">
             <h2>🥕 Recent Notifications</h2>
             <div className="header-actions">
+              <button className="action-btn" onClick={generateTestNotifications}>
+                🧪 Generate Test
+              </button>
               <button className="action-btn" onClick={clearAllNotifications}>
                 🗑️ Clear All
               </button>
@@ -228,11 +254,23 @@ function Notifications() {
           </div>
           
           <div className="notifications-list">
-            {notifications.length === 0 ? (
+            {loading ? (
+              <div className="loading-notifications">
+                <div className="loading-spinner">🔄 Loading notifications...</div>
+              </div>
+            ) : error ? (
+              <div className="error-notifications">
+                <div className="error-message">❌ {error}</div>
+                <button onClick={fetchNotifications} className="retry-btn">🔄 Retry</button>
+              </div>
+            ) : notifications.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">🔔</div>
                 <h3>No notifications yet</h3>
                 <p>You'll see your study reminders and achievements here</p>
+                <button onClick={generateTestNotifications} className="test-btn">
+                  🧪 Generate Test Notifications
+                </button>
               </div>
             ) : (
               notifications.map(notification => (

@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'apps.core',
     'apps.study',
+    'apps.notifications',
     'voice_agent',
     'features',
 ]

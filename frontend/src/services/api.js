@@ -336,6 +336,99 @@ class ApiService {
       throw error;
     }
   }
+
+  // Notification methods
+  async getNotifications() {
+    try {
+      const response = await fetch(`${this.baseURL}/notifications/`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+      return await this.handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      throw error;
+    }
+  }
+
+  async markNotificationRead(notificationId) {
+    try {
+      const response = await fetch(`${this.baseURL}/notifications/${notificationId}/read/`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+      });
+      return await this.handleResponse(response);
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      throw error;
+    }
+  }
+
+  async markAllNotificationsRead() {
+    try {
+      const response = await fetch(`${this.baseURL}/notifications/mark-all-read/`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+      });
+      return await this.handleResponse(response);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      throw error;
+    }
+  }
+
+  async clearAllNotifications() {
+    try {
+      const response = await fetch(`${this.baseURL}/notifications/clear-all/`, {
+        method: 'DELETE',
+        headers: this.getHeaders(),
+      });
+      return await this.handleResponse(response);
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+      throw error;
+    }
+  }
+
+  async getNotificationSettings() {
+    try {
+      const response = await fetch(`${this.baseURL}/notifications/settings/`, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+      return await this.handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching notification settings:', error);
+      throw error;
+    }
+  }
+
+  async updateNotificationSettings(settings) {
+    try {
+      const response = await fetch(`${this.baseURL}/notifications/settings/`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(settings),
+      });
+      return await this.handleResponse(response);
+    } catch (error) {
+      console.error('Error updating notification settings:', error);
+      throw error;
+    }
+  }
+
+  async generateTestNotifications() {
+    try {
+      const response = await fetch(`${this.baseURL}/notifications/generate-test/`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+      });
+      return await this.handleResponse(response);
+    } catch (error) {
+      console.error('Error generating test notifications:', error);
+      throw error;
+    }
+  }
 }
 
 // Create and export a singleton instance
