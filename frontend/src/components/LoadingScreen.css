@@ -1,0 +1,127 @@
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #e3f2fd 0%, #f8f9fa 100%);
+  z-index: 9999;
+  animation: fadeIn 0.5s ease-in;
+}
+
+.bunny {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%) translateX(-4em);
+  width: 5em;
+  height: 3em;
+  background: #ffffff;
+  border-radius: 70% 90% 60% 50%;
+  box-shadow: -0.2em 1em 0 -0.75em #b78e81;
+  animation: bunnyHop 1s infinite linear;
+  transition: left 0.1s ease;
+  z-index: 1;
+}
+
+.bunny:before {
+  content: "";
+  position: absolute;
+  width: 1em;
+  height: 1em;
+  background: white;
+  border-radius: 100%;
+  top: 0.5em;
+  left: -0.3em;
+  box-shadow:
+    4em 0.4em 0 -0.35em #3f3334,
+    0.5em 1em 0 white,
+    4em 1em 0 -0.3em white,
+    4em 1em 0 -0.3em white,
+    4em 1em 0 -0.4em white;
+  animation: kick 1s infinite linear;
+}
+
+.bunny:after {
+  content: "";
+  position: absolute;
+  width: 0.75em;
+  height: 2em;
+  background: white;
+  border-radius: 50% 100% 0 0;
+  transform: rotate(-30deg);
+  right: 1em;
+  top: -1em;
+  border-top: 1px solid #f7f5f4;
+  border-left: 1px solid #f7f5f4;
+  box-shadow: -0.5em 0em 0 -0.1em white;
+}
+
+@keyframes bunnyHop {
+  20% {
+    transform: rotate(-10deg) translate(1em, -2em);
+    box-shadow: -0.2em 3em 0 -1em #b78e81;
+  }
+  40% {
+    transform: rotate(10deg) translate(3em, -4em);
+    box-shadow: -0.2em 3.25em 0 -1.1em #b78e81;
+  }
+  60%, 75% {
+    transform: rotate(0) translate(4em, 0);
+    box-shadow: -0.2em 1em 0 -0.75em #b78e81;
+  }
+}
+
+@keyframes kick {
+  20%, 50% {
+    box-shadow:
+      4em 0.4em 0 -0.35em #3f3334,
+      0.5em 1.5em 0 white,
+      4em 1.75em 0 -0.3em white,
+      4em 1.75em 0 -0.3em white,
+      4em 1.9em 0 -0.4em white;
+  }
+  40% {
+    box-shadow:
+      4em 0.4em 0 -0.35em #3f3334,
+      0.5em 2em 0 white,
+      4em 1.75em 0 -0.3em white,
+      4.2em 1.75em 0 -0.2em white,
+      4.4em 1.9em 0 -0.2em white;
+  }
+}
+
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.fade-out {
+  animation: fadeOut 0.5s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .bunny {
+    width: 4em;
+    height: 2.5em;
+  }
+}

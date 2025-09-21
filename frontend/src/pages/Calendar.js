@@ -164,23 +164,57 @@ function Calendar() {
   };
 
   return (
-    <div className="page">
-      <h1> Calendar</h1>
-      <p>Manage your study schedule and upcoming events</p>
+    <div className="page calendar-page">
+      <div className="calendar-header">
+        <div className="header-content">
+          <div className="calendar-title">
+            <div className="desktop-letters">
+              <div className="post-it-letter">C</div>
+              <div className="post-it-letter">A</div>
+              <div className="post-it-letter">L</div>
+              <div className="post-it-letter">E</div>
+              <div className="post-it-letter">N</div>
+              <div className="post-it-letter">D</div>
+              <div className="post-it-letter">A</div>
+              <div className="post-it-letter">R</div>
+            </div>
+            <div className="mobile-letters">
+              <div className="mobile-word">
+                <div className="post-it-letter">C</div>
+                <div className="post-it-letter">A</div>
+                <div className="post-it-letter">L</div>
+                <div className="post-it-letter">E</div>
+                <div className="post-it-letter">N</div>
+              </div>
+              <div className="mobile-word">
+                <div className="post-it-letter">D</div>
+                <div className="post-it-letter">A</div>
+                <div className="post-it-letter">R</div>
+              </div>
+            </div>
+          </div>
+          <p className="page-subtitle">Manage your study schedule and upcoming events</p>
+        </div>
+        <div className="carrot-decoration carrot-left">🥕</div>
+        <div className="carrot-decoration carrot-right">🥕</div>
+      </div>
       
       <div className="page-content">
-        <div className="calendar-placeholder">
-          <h2>Calendar View</h2>
-          <p>Your study calendar will be displayed here</p>
-          {loading && <p>Loading 14-day schedule...</p>}
+        <div className="calendar-container">
+          {loading && (
+            <div className="loading-indicator">
+              <div className="loading-spinner"></div>
+              <p>Loading your 14-day schedule...</p>
+            </div>
+          )}
           <div className="calendar-grid">
-            <div className="calendar-day">Mon</div>
-            <div className="calendar-day">Tue</div>
-            <div className="calendar-day">Wed</div>
-            <div className="calendar-day">Thu</div>
-            <div className="calendar-day">Fri</div>
-            <div className="calendar-day">Sat</div>
-            <div className="calendar-day">Sun</div>
+            <div className="calendar-day-header">Mon</div>
+            <div className="calendar-day-header">Tue</div>
+            <div className="calendar-day-header">Wed</div>
+            <div className="calendar-day-header">Thu</div>
+            <div className="calendar-day-header">Fri</div>
+            <div className="calendar-day-header">Sat</div>
+            <div className="calendar-day-header">Sun</div>
             
             {calendarDays.map((day, index) => {
               if (!day) {
@@ -218,8 +252,10 @@ function Calendar() {
           
           {schedule.length > 0 && (
             <div className="schedule-info">
-              <h3>14-Day Schedule Loaded</h3>
-              <p>Total days with tasks: {schedule.filter(day => day && day.length > 0).length}</p>
+              <div className="schedule-info-content">
+                <h3>📊 Schedule Overview</h3>
+                <p>Total days with tasks: {schedule.filter(day => day && day.length > 0).length}</p>
+              </div>
             </div>
           )}
         </div>

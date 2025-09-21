@@ -5,6 +5,14 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.views.decorators.http import require_http_methods
 import json
+
+# Import aifc compatibility module before importing speech_recognition
+try:
+    import aifc
+except ImportError:
+    # Python 3.13+ compatibility - aifc module was removed
+    from . import aifc_compat
+
 from .update_task import process_voice_command, get_voice_input
 
 @csrf_exempt
