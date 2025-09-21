@@ -48,6 +48,85 @@ def update_task_by_name_api(request):
         return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['PATCH'])
+@permission_classes([permissions.AllowAny])
+def update_task_progress_api(request, task_id):
+    """
+    Update a task's progress by task ID
+    
+    URL parameters:
+    - task_id (int): ID of the task to update
+    
+    Body parameters:
+    - completed_so_far (float): Completion percentage (0-100)
+    
+    Returns:
+    - success (bool): Whether the update was successful
+    - message (str): Success or error message
+    - task (dict): Updated task data
+    """
+    try:
+        # Get demo user for now
+        demo_user, created = User.objects.get_or_create(
+            username='demo_user',
+            defaults={'email': 'demo@example.com'}
+        )
+        
+        # Get the task
+        try:
+            task = Task.objects.get(id=task_id, user=demo_user)
+        except Task.DoesNotExist:
+            return Response(
+                {'error': f'Task with ID {task_id} not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get completion percentage
+        completed_so_far = request.data.get('completed_so_far')
+        if completed_so_far is None:
+            return Response(
+                {'error': 'completed_so_far is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate completion percentage
+        try:
+            completed_so_far = float(completed_so_far)
+            if not 0 <= completed_so_far <= 100:
+                return Response(
+                    {'error': 'completed_so_far must be between 0 and 100'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except (ValueError, TypeError):
+            return Response(
+                {'error': 'completed_so_far must be a valid number'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Update the task
+        task.completed_so_far = completed_so_far
+        task.is_completed = completed_so_far >= 100
+        task.save()
+        
+        return Response({
+            'success': True,
+            'message': f'Task progress updated to {completed_so_far}%',
+            'task': {
+                'id': task.id,
+                'title': task.title,
+                'completed_so_far': task.completed_so_far,
+                'is_completed': task.is_completed,
+                'updated_at': task.updated_at.isoformat()
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error updating task progress: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def get_task_by_name_api(request):
@@ -442,5 +521,115 @@ def get_statistics(request):
     except Exception as e:
         return Response(
             {'error': f'Error getting statistics: {str(e)}'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def test_free_time(request):
+    """Test free time calculation for September 20th"""
+    try:
+        from apps.core.intensity import get_intensity
+        from apps.core.models import TimeCalculation
+        from datetime import date
+        
+        intensity = get_intensity()
+        
+        # Test free time for September 20th specifically
+        sept_20 = date(2025, 9, 20)
+        free_time_sept_20 = TimeCalculation.get_free_d(sept_20, intensity_value=intensity)
+        
+        # Test free time for September 21st
+        sept_21 = date(2025, 9, 21)
+        free_time_sept_21 = TimeCalculation.get_free_d(sept_21, intensity_value=intensity)
+        
+        return Response({
+            'success': True,
+            'intensity': intensity,
+            'sept_20_free_time_hours': free_time_sept_20.total_seconds() / 3600,
+            'sept_21_free_time_hours': free_time_sept_21.total_seconds() / 3600,
+            'sept_20_date': '2025-09-20',
+            'sept_21_date': '2025-09-21',
+        })
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        })
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_dashboard_stats(request):
+    """
+    Get dashboard statistics including Personal Score based on required intensity
+    """
+    try:
+        # Get demo user
+        demo_user, created = User.objects.get_or_create(
+            username='demo_user',
+            defaults={'email': 'demo@example.com'}
+        )
+        
+        # Get current intensity
+        current_intensity = get_intensity()
+        
+        # Get required intensity from 14-day simulation
+        try:
+            schedule_result = generate_14_day_schedule(demo_user)
+            if schedule_result and 'minimum_required_intensity' in schedule_result:
+                required_intensity = schedule_result['minimum_required_intensity']
+                print(f"Dashboard stats - Required intensity from 14-day schedule: {required_intensity}")
+            else:
+                required_intensity = 0.5  # Default if no simulation data
+                print(f"Dashboard stats - Using default required intensity: {required_intensity}")
+        except Exception as e:
+            print(f"Error getting 14-day schedule intensity: {e}")
+            required_intensity = 0.5  # Default on error
+        
+        # Calculate Personal Score based on required intensity
+        # Lower required intensity = higher score
+        # 0.5 required intensity = 75 score
+        # Formula: Score = 100 - (required_intensity * 75)
+        # This gives: 0.5 -> 62.5, 0.0 -> 100, 1.0 -> 25, 0.8 -> 40
+        personal_score = max(0, min(100, 100 - (required_intensity * 75)))
+        
+        # Calculate other stats
+        total_tasks = Task.objects.filter(user=demo_user).count()
+        
+        # Calculate tasks completed in the last 7 days
+        from django.utils import timezone
+        seven_days_ago = timezone.now().date() - timedelta(days=7)
+        tasks_completed_last_7_days = Task.objects.filter(
+            user=demo_user, 
+            is_completed=True,
+            updated_at__date__gte=seven_days_ago
+        ).count()
+        
+        # Keep completion percent for performance score calculation
+        completed_tasks = Task.objects.filter(user=demo_user, is_completed=True).count()
+        completion_percent = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+        
+        # Calculate work hours percentile (placeholder)
+        work_hours_percentile = 50  # Placeholder
+        
+        # Calculate performance score (placeholder)
+        performance_score = (personal_score + completion_percent) / 2
+        
+        return Response({
+            'performance_score': round(performance_score, 1),
+            'work_hours_percentile': work_hours_percentile,
+            'assignment_completion_percent': tasks_completed_last_7_days,
+            'how_am_i_doing_score': round(personal_score, 1),
+            'current_intensity': current_intensity,
+            'required_intensity': required_intensity,
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'tasks_completed_last_7_days': tasks_completed_last_7_days
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error getting dashboard stats: {str(e)}'}, 
             status=status.HTTP_400_BAD_REQUEST
         )

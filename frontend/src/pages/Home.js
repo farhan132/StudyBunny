@@ -12,6 +12,8 @@ function Home() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [scheduleData, setScheduleData] = useState([]);
+  const [scheduleTaskProgress, setScheduleTaskProgress] = useState({}); // Track progress for schedule tasks
+  const [completedScheduleTasks, setCompletedScheduleTasks] = useState({}); // Track completed schedule tasks
   const [dashboardStats, setDashboardStats] = useState({
     performanceScore: 0,
     userIntensity: 50,
@@ -51,8 +53,9 @@ function Home() {
 
   const fetchDashboardStats = async () => {
     try {
+      console.log('Fetching dashboard stats...');
       // Fetch dashboard stats from backend
-      const response = await fetch('/api/dashboard/stats/', {
+      const response = await fetch('/api/study/dashboard-stats/', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -61,6 +64,7 @@ function Home() {
       
       if (response.ok) {
         const data = await response.json();
+        console.log('Dashboard stats received:', data);
         setDashboardStats(prev => ({
           ...prev,
           performanceScore: data.performance_score || 0,
@@ -68,6 +72,7 @@ function Home() {
           assignmentCompletionPercent: data.assignment_completion_percent || 0,
           howAmIDoingScore: data.how_am_i_doing_score || 0
         }));
+        console.log('Dashboard stats updated in state');
       } else {
         console.error('Failed to fetch dashboard stats');
         // Keep current stats if backend fails
@@ -160,10 +165,14 @@ function Home() {
 
   // Get today's scheduled tasks from the 14-day schedule
   const getTodaysScheduledTasks = () => {
-    if (!scheduleData || scheduleData.length === 0) return [];
+    if (!scheduleData || scheduleData.length === 0) {
+      console.log('No schedule data available');
+      return [];
+    }
     
     // Get today's tasks (index 0 in the 14-day schedule)
     const todayTasks = scheduleData[0] || [];
+    console.log('Today\'s tasks from schedule:', todayTasks);
     
     // Convert schedule tasks to assignment format for display
     return todayTasks.map(task => {
@@ -193,6 +202,41 @@ function Home() {
         }
       }
       
+      // Calculate projected percentage for today based on time allocation
+      let projectedPercentage = 0;
+      if (task.time_needed_total && task.time_allotted) {
+        // Parse time_needed_total (format: "12:00:00")
+        const timeNeededParts = task.time_needed_total.split(':');
+        const timeNeededSeconds = (parseInt(timeNeededParts[0]) * 3600) + 
+                                 (parseInt(timeNeededParts[1]) * 60) + 
+                                 parseInt(timeNeededParts[2]);
+        
+        // Parse time_allotted (in seconds)
+        const timeAllotted = parseFloat(task.time_allotted);
+        
+        if (timeNeededSeconds > 0) {
+          // Calculate what percentage of the total task should be done today
+          const todayAllocationPercentage = (timeAllotted / timeNeededSeconds) * 100;
+          
+          // Add this to the current progress to get the target progress
+          const currentProgress = scheduleTaskProgress[`schedule_${task.task_id}`] !== undefined 
+            ? scheduleTaskProgress[`schedule_${task.task_id}`] 
+            : Math.round(task.completion_before || 0);
+          
+          projectedPercentage = Math.min(100, currentProgress + todayAllocationPercentage);
+          // Round to avoid long decimal numbers
+          projectedPercentage = Math.round(projectedPercentage);
+        }
+      }
+      
+      // Check if we have a local update for this task
+      const taskId = `schedule_${task.task_id}`;
+      const currentProgress = scheduleTaskProgress[taskId] !== undefined 
+        ? scheduleTaskProgress[taskId] 
+        : Math.round(task.completion_before || 0);
+      
+      console.log('getTodaysScheduledTasks - task:', task.task_id, 'scheduleTaskProgress:', scheduleTaskProgress[taskId], 'currentProgress:', currentProgress);
+      
       // Calculate color based on time ratio
       const color = getTaskColor(task);
       
@@ -204,12 +248,23 @@ function Home() {
         priority: task.priority,
         subject: '', // Not available in schedule data
         estimatedTime: formattedTime, // Now a formatted string
-        completionPercentage: task.completion_after || 0,
-        status: task.completion_after >= 100 ? 'completed' : 'pending',
+        completionPercentage: currentProgress, // Use local update if available
+        projectedPercentage: Math.round(projectedPercentage), // Add projected percentage
+        status: currentProgress >= 100 ? 'completed' : 'pending',
         isScheduled: true, // Flag to indicate this is from schedule
         color: color // Add color property
       };
     });
+  };
+
+  // Get today's pending scheduled tasks (not completed)
+  const getTodaysPendingTasks = () => {
+    return getTodaysScheduledTasks().filter(task => task.status !== 'completed');
+  };
+
+  // Get today's completed scheduled tasks
+  const getTodaysCompletedTasks = () => {
+    return getTodaysScheduledTasks().filter(task => task.status === 'completed');
   };
 
   // Convert backend intensity (0.1-0.8) to frontend percentage (0-100)
@@ -458,52 +513,108 @@ function Home() {
   }, [completedAssignments]);
 
   const handleMarkComplete = useCallback(async (assignmentId) => {
-    // Find the assignment to get its name
-    const assignment = assignments.find(a => a.id === assignmentId);
-    if (!assignment) return;
-
-    // Update UI immediately for better responsiveness
-    setAssignments(prevAssignments => {
-      const assignmentToMove = prevAssignments.find(a => a.id === assignmentId);
-      if (assignmentToMove) {
-        const completedAssignment = { ...assignmentToMove, status: 'completed', completionPercentage: 100 };
-        // Add to completed assignments immediately
-        setCompletedAssignments(prevCompleted => {
-          // Check if assignment already exists to prevent duplicates
-          const exists = prevCompleted.some(a => a.id === assignmentId);
-          if (!exists) {
-            return [...prevCompleted, completedAssignment];
-          }
-          return prevCompleted;
-        });
-        return prevAssignments.filter(a => a.id !== assignmentId);
-      }
-      return prevAssignments;
-    });
-
-    // API call in background
-    try {
-      await apiService.updateTask(assignment.name, {
-        completed_so_far: 100,
-        is_completed: true
+    console.log('handleMarkComplete called:', { assignmentId });
+    
+    // Check if this is a schedule task
+    if (assignmentId.startsWith('schedule_')) {
+      console.log('Marking schedule task as complete:', assignmentId);
+      
+      // For schedule tasks, just update the progress to 100%
+      setScheduleTaskProgress(prev => {
+        console.log('Updating scheduleTaskProgress to 100 for:', assignmentId);
+        return {
+          ...prev,
+          [assignmentId]: 100
+        };
       });
-    } catch (error) {
-      console.error('Error updating assignment:', error);
+      
+      // Extract the actual task ID and update via API
+      const taskId = assignmentId.replace('schedule_', '');
+      try {
+        console.log(`Calling API to mark task ${taskId} as complete (100%)`);
+        await apiService.updateTaskProgress(parseInt(taskId), 100);
+        console.log(`Schedule task ${taskId} marked as complete`);
+        
+        // Refresh the 14-day schedule
+        console.log('Refreshing 14-day schedule after completion...');
+        await fetch14DaySchedule();
+        console.log('Schedule refreshed, new schedule data:', scheduleData);
+        
+        // Also refresh dashboard stats to update Personal Score
+        console.log('Refreshing dashboard stats after completion...');
+        await fetchDashboardStats();
+      } catch (error) {
+        console.error('Error updating schedule task:', error);
+      }
+    } else {
+      // Find the assignment to get its name
+      const assignment = assignments.find(a => a.id === assignmentId);
+      if (!assignment) return;
+
+      // Update UI immediately for better responsiveness
+      setAssignments(prevAssignments => {
+        const assignmentToMove = prevAssignments.find(a => a.id === assignmentId);
+        if (assignmentToMove) {
+          const completedAssignment = { ...assignmentToMove, status: 'completed', completionPercentage: 100 };
+          // Add to completed assignments immediately
+          setCompletedAssignments(prevCompleted => {
+            // Check if assignment already exists to prevent duplicates
+            const exists = prevCompleted.some(a => a.id === assignmentId);
+            if (!exists) {
+              return [...prevCompleted, completedAssignment];
+            }
+            return prevCompleted;
+          });
+          return prevAssignments.filter(a => a.id !== assignmentId);
+        }
+        return prevAssignments;
+      });
+
+      // API call in background
+      try {
+        await apiService.updateTask(assignment.name, {
+          completed_so_far: 100,
+          is_completed: true
+        });
+      } catch (error) {
+        console.error('Error updating assignment:', error);
+      }
     }
-  }, [assignments]);
+  }, [assignments, fetch14DaySchedule, fetchDashboardStats]);
 
   const handleUpdateProgress = useCallback((assignmentId, newPercentage) => {
-    // Update local state immediately for smooth UI using functional update
-    setAssignments(prevAssignments => 
-      prevAssignments.map(a => 
-        a.id === assignmentId ? { ...a, completionPercentage: newPercentage } : a
-      )
-    );
+    console.log('handleUpdateProgress called:', { assignmentId, newPercentage });
+    
+    // Check if this is a schedule task
+    if (assignmentId.startsWith('schedule_')) {
+      // Update schedule task progress
+      setScheduleTaskProgress(prev => {
+        console.log('Updating schedule task progress:', { assignmentId, newPercentage });
+        return {
+          ...prev,
+          [assignmentId]: newPercentage
+        };
+      });
+    } else {
+      // Update regular assignment progress
+      setAssignments(prevAssignments => {
+        console.log('Previous assignments:', prevAssignments.map(a => ({ id: a.id, completionPercentage: a.completionPercentage })));
+        
+        const updated = prevAssignments.map(a => 
+          a.id === assignmentId ? { ...a, completionPercentage: newPercentage } : a
+        );
+        
+        console.log('Updated assignments:', updated.map(a => ({ id: a.id, completionPercentage: a.completionPercentage })));
+        return updated;
+      });
+    }
   }, []);
 
   // Debounced API call to prevent too many requests
   const debouncedApiCall = useCallback(
     (assignmentId, newPercentage) => {
+      console.log('debouncedApiCall called:', { assignmentId, newPercentage });
+      
       // Clear any existing timeout for this assignment
       if (window.progressTimeouts && window.progressTimeouts[assignmentId]) {
         clearTimeout(window.progressTimeouts[assignmentId]);
@@ -516,12 +627,39 @@ function Home() {
       
       // Set new timeout
       window.progressTimeouts[assignmentId] = setTimeout(async () => {
+        console.log('debouncedApiCall timeout executing:', { assignmentId, newPercentage });
         try {
-          const assignment = assignments.find(a => a.id === assignmentId);
-          if (assignment) {
-            await apiService.updateTask(assignment.name, {
-              completed_so_far: newPercentage
-            });
+          // Check if this is a schedule task (starts with 'schedule_')
+          if (assignmentId.startsWith('schedule_')) {
+            // Extract the actual task ID from the schedule ID
+            const taskId = assignmentId.replace('schedule_', '');
+            console.log(`Updating schedule task - assignmentId: ${assignmentId}, taskId: ${taskId}, parsed: ${parseInt(taskId)}`);
+            
+            // Call the API to update task progress
+            console.log(`Calling API to update task ${taskId} to ${newPercentage}%`);
+            try {
+              const apiResult = await apiService.updateTaskProgress(parseInt(taskId), newPercentage);
+              console.log(`API result for task ${taskId}:`, apiResult);
+            } catch (apiError) {
+              console.error(`API error for task ${taskId}:`, apiError);
+              throw apiError; // Re-throw to be caught by outer try-catch
+            }
+            
+            // Refresh the 14-day schedule to reflect the updated progress
+            console.log('Refreshing 14-day schedule after progress update...');
+            await fetch14DaySchedule();
+            
+            // Also refresh dashboard stats to update Personal Score
+            console.log('Refreshing dashboard stats after progress update...');
+            await fetchDashboardStats();
+          } else {
+            // Regular assignment update - find in assignments array
+            const assignment = assignments.find(a => a.id === assignmentId);
+            if (assignment) {
+              await apiService.updateTask(assignment.name, {
+                completed_so_far: newPercentage
+              });
+            }
           }
         } catch (error) {
           console.error('Error updating progress:', error);
@@ -533,21 +671,25 @@ function Home() {
         }
       }, 500); // Increased delay to 500ms for better performance
     },
-    [assignments]
+    [assignments, fetch14DaySchedule, fetchDashboardStats]
   );
 
   const handleProgressChange = useCallback((assignmentId, newPercentage) => {
+    console.log('handleProgressChange called:', { assignmentId, newPercentage });
+    
     // Update local state immediately for smooth UI
     handleUpdateProgress(assignmentId, newPercentage);
     
     // If 100%, mark as complete
     if (newPercentage >= 100) {
+      console.log('Progress is 100%, calling handleMarkComplete');
       handleMarkComplete(assignmentId);
     } else {
+      console.log('Progress is not 100%, calling debouncedApiCall');
       // Debounced API call for progress update
       debouncedApiCall(assignmentId, newPercentage);
     }
-  }, [handleUpdateProgress, debouncedApiCall, handleMarkComplete]);
+  }, [handleUpdateProgress, handleMarkComplete]);
 
   const handleEditAssignment = useCallback((assignment) => {
     setEditingAssignment(assignment);
@@ -866,11 +1008,11 @@ function Home() {
           isHoursPercentile={true}
         />
         <RadialProgress
-          percentage={dashboardStats.assignmentCompletionPercent}
-          label="Assignment Completion"
+          percentage={Math.min(100, dashboardStats.assignmentCompletionPercent * 10)} // Scale: 10 tasks = 100%
+          label={`Assignment Completion (${dashboardStats.assignmentCompletionPercent} tasks)`}
           color={
-            dashboardStats.assignmentCompletionPercent >= 66 ? "#1e40af" : 
-            dashboardStats.assignmentCompletionPercent >= 33 ? "#3b82f6" : 
+            dashboardStats.assignmentCompletionPercent >= 8 ? "#1e40af" : 
+            dashboardStats.assignmentCompletionPercent >= 5 ? "#3b82f6" : 
             "#93c5fd"
           }
           showBunny={true}
@@ -1026,12 +1168,12 @@ function Home() {
           <div className="loading">Loading today's schedule...</div>
         ) : (
           <div className="assignments-grid">
-            {getTodaysScheduledTasks().length === 0 ? (
+            {getTodaysPendingTasks().length === 0 ? (
               <div className="no-assignments">
                 <p>No tasks scheduled for today. Check the calendar for your 14-day schedule!</p>
               </div>
             ) : (
-              sortAssignmentsByPriority(getTodaysScheduledTasks()).map(assignment => (
+              sortAssignmentsByPriority(getTodaysPendingTasks()).map(assignment => (
                 <div key={assignment.id} className={`assignment-card ${assignment.color || 'green'}`} data-priority={assignment.priority}>
                   <div className="assignment-actions">
                     {assignment.status !== 'completed' && (
@@ -1068,13 +1210,25 @@ function Home() {
                   </div>
                   
                   <div className="progress-section">
+                    <div className="progress-info">
+                      <span className="current-progress">{assignment.completionPercentage}%</span>
+                      {assignment.projectedPercentage && (
+                        <span className="projected-progress">Target: {assignment.projectedPercentage}%</span>
+                      )}
+                    </div>
                     <div className="progress-slider-container">
                       <input
                         type="range"
                         min="0"
                         max="100"
                         value={assignment.completionPercentage}
-                        onChange={(e) => handleProgressChange(assignment.id, parseInt(e.target.value))}
+                        onChange={(e) => {
+                          console.log('Slider onChange fired:', { assignmentId: assignment.id, value: e.target.value });
+                          handleProgressChange(assignment.id, parseInt(e.target.value));
+                        }}
+                        onInput={(e) => {
+                          console.log('Slider onInput fired:', { assignmentId: assignment.id, value: e.target.value });
+                        }}
                         className="progress-slider"
                         title="Adjust completion percentage"
                         style={{
@@ -1085,8 +1239,12 @@ function Home() {
                           } ${assignment.completionPercentage}%, transparent ${assignment.completionPercentage}%)`
                         }}
                       />
+                      {assignment.projectedPercentage && (
+                        <div className="projected-indicator" style={{left: `${assignment.projectedPercentage}%`}}>
+                          <div className="projected-line"></div>
+                        </div>
+                      )}
                     </div>
-                    <div className="progress-percentage">{assignment.completionPercentage}%</div>
                   </div>
 
                   <div className="assignment-footer">
@@ -1124,12 +1282,12 @@ function Home() {
           <div className="loading">Loading today's completed tasks...</div>
         ) : (
           <div className="assignments-grid">
-            {getTodaysScheduledTasks().filter(task => task.status === 'completed').length === 0 ? (
+            {getTodaysCompletedTasks().length === 0 ? (
               <div className="no-assignments">
                 <p>No completed tasks for today yet. Complete some tasks to see them here!</p>
               </div>
             ) : (
-              sortAssignmentsByPriority(getTodaysScheduledTasks().filter(task => task.status === 'completed')).map(assignment => (
+              sortAssignmentsByPriority(getTodaysCompletedTasks()).map(assignment => (
                 <div key={assignment.id} className={`assignment-card completed-assignment ${assignment.color || 'green'}`} data-priority={assignment.priority}>
                   <div className="assignment-actions">
                     <button 
@@ -1164,13 +1322,25 @@ function Home() {
                   </div>
                   
                   <div className="progress-section">
+                    <div className="progress-info">
+                      <span className="current-progress">{assignment.completionPercentage}%</span>
+                      {assignment.projectedPercentage && (
+                        <span className="projected-progress">Target: {assignment.projectedPercentage}%</span>
+                      )}
+                    </div>
                     <div className="progress-slider-container">
                       <input
                         type="range"
                         min="0"
                         max="100"
                         value={assignment.completionPercentage}
-                        onChange={(e) => handleProgressChange(assignment.id, parseInt(e.target.value))}
+                        onChange={(e) => {
+                          console.log('Slider onChange fired:', { assignmentId: assignment.id, value: e.target.value });
+                          handleProgressChange(assignment.id, parseInt(e.target.value));
+                        }}
+                        onInput={(e) => {
+                          console.log('Slider onInput fired:', { assignmentId: assignment.id, value: e.target.value });
+                        }}
                         className="progress-slider"
                         title="Adjust completion percentage"
                         style={{
@@ -1181,8 +1351,12 @@ function Home() {
                           } ${assignment.completionPercentage}%, transparent ${assignment.completionPercentage}%)`
                         }}
                       />
+                      {assignment.projectedPercentage && (
+                        <div className="projected-indicator" style={{left: `${assignment.projectedPercentage}%`}}>
+                          <div className="projected-line"></div>
+                        </div>
+                      )}
                     </div>
-                    <div className="progress-percentage">{assignment.completionPercentage}%</div>
                   </div>
 
                   <div className="assignment-footer">

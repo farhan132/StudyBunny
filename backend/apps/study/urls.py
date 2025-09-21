@@ -7,6 +7,8 @@ urlpatterns = [
     path('tasks/create/', views.create_task, name='create-task'),
     path('tasks/update-by-name/', views.update_task_by_name_api, name='update-task-by-name'),
     path('tasks/get-by-name/', views.get_task_by_name_api, name='get-task-by-name'),
+    path('tasks/<int:task_id>/progress/', views.update_task_progress_api, name='update-task-progress'),
+    path('test-free-time/', views.test_free_time, name='test-free-time'),
     
     # Daily schedule endpoints
     path('daily-schedules/', views.list_daily_schedules, name='list-daily-schedules'),
@@ -19,4 +21,7 @@ urlpatterns = [
     
     # Statistics endpoints
     path('statistics/', views.get_statistics, name='get-statistics'),
+    
+    # Dashboard endpoints
+    path('dashboard-stats/', views.get_dashboard_stats, name='get-dashboard-stats'),
 ]

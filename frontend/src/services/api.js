@@ -129,6 +129,21 @@ class ApiService {
     }
   }
 
+  // Task progress management
+  async updateTaskProgress(taskId, completedSoFar) {
+    try {
+      const response = await fetch(`${this.baseURL}/study/tasks/${taskId}/progress/`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ completed_so_far: completedSoFar }),
+      });
+      return await this.handleResponse(response);
+    } catch (error) {
+      console.error('Error updating task progress:', error);
+      throw error;
+    }
+  }
+
   // Daily schedule methods
   async get14DaySchedule(startDate = null) {
     try {
