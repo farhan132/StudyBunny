@@ -1338,6 +1338,7 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
             }
         
         minimum_intensity = min_intensity_result['minimum_intensity']
+        true_minimum_required_intensity = minimum_intensity  # Store the true minimum required intensity before any modifications
         print(f"✅ Minimum intensity found: {minimum_intensity:.3f}")
 
         # Use current global intensity if it's higher than minimum required
@@ -1492,7 +1493,8 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
             'end_date': end_date,
             'total_tasks_scheduled': total_tasks_scheduled,
             'intensity_used': avg_intensity,
-            'minimum_required_intensity': minimum_intensity,
+            'minimum_required_intensity': true_minimum_required_intensity,  # Use the true minimum required intensity
+            'intensity_used_for_scheduling': minimum_intensity,  # The intensity actually used for scheduling
             'completion_analysis': {
                 'total_tasks': total_tasks,
                 'completed_tasks': scheduled_tasks,

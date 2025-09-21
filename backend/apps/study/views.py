@@ -587,18 +587,17 @@ def get_dashboard_stats(request):
             print(f"Error getting 14-day schedule intensity: {e}")
             minimum_required_intensity = 0.5  # Default on error
         
-        # Get the actual intensity being used (same logic as in 14-day schedule)
-        from apps.core.intensity import get_intensity_info
-        intensity_info = get_intensity_info()
-        actual_intensity = max(minimum_required_intensity, intensity_info['intensityXcap'])
-        print(f"Dashboard stats - Actual intensity being used: {actual_intensity}")
-        
-        # Calculate Personal Score based on actual intensity being used
-        # Lower actual intensity = higher score
-        # 0.5 actual intensity = 75 score
-        # Formula: Score = 100 - (actual_intensity * 75)
+        # Calculate Personal Score based on minimum required intensity from 14-day simulation
+        # Lower minimum required intensity = higher score (easier to complete tasks)
+        # 0.5 minimum required intensity = 75 score
+        # Formula: Score = 100 - (minimum_required_intensity * 75)
         # This gives: 0.5 -> 62.5, 0.0 -> 100, 1.0 -> 25, 0.8 -> 40
-        personal_score = max(0, min(100, 100 - (actual_intensity * 75)))
+        personal_score = max(0, min(100, 100 - (minimum_required_intensity * 75)))
+        print(f"🎯 PERSONAL SCORE CALCULATION:")
+        print(f"   📊 Minimum Required Intensity: {minimum_required_intensity:.6f}")
+        print(f"   📊 Global Intensity (NOT USED): {current_intensity:.6f}")
+        print(f"   📊 Formula: 100 - ({minimum_required_intensity:.6f} * 75) = {personal_score:.1f}")
+        print(f"   ✅ Personal Score: {personal_score:.1f} (using ONLY minimum required intensity)")
         
         # Calculate other stats
         total_tasks = Task.objects.filter(user=demo_user).count()
@@ -629,7 +628,6 @@ def get_dashboard_stats(request):
             'how_am_i_doing_score': round(personal_score, 1),
             'current_intensity': current_intensity,
             'minimum_required_intensity': minimum_required_intensity,
-            'actual_intensity_used': actual_intensity,
             'total_tasks': total_tasks,
             'completed_tasks': completed_tasks,
             'tasks_completed_last_7_days': tasks_completed_last_7_days
