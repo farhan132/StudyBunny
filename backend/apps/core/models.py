@@ -114,16 +114,35 @@ class TimeCalculation(models.Model):
     def get_free_today(cls, target_date=None, intensity_value=None):
         """
         Calculate free time available today
-        This is a skeleton function - implement your logic here
+        Excludes bedtime hours (00:00 to 08:00) only if current time is before 8:00 AM
         Returns: timedelta object
         
         Args:
             target_date: Date to calculate for (defaults to today)
             intensity_value: Optional intensity value (0.0-1.0). If None, uses global intensity
         """
-        # TODO: Implement your free time calculation logic
-        # This could involve checking scheduled events, work hours, etc.
         time_today = cls.get_time_today(target_date)
+        
+        # Check if current time is before 8:00 AM
+        from django.utils import timezone
+        import pytz
+        
+        user_tz = pytz.timezone('America/Chicago')  # CDT timezone
+        now_user = timezone.now().astimezone(user_tz)
+        current_hour = now_user.hour
+        
+        # Only subtract bedtime hours if it's before 8:00 AM
+        if current_hour < 8:
+            # Subtract remaining bedtime hours (from current time to 8:00 AM)
+            bedtime_remaining = timedelta(hours=8 - current_hour)
+            available_time = time_today - bedtime_remaining
+        else:
+            # It's already past 8:00 AM, so bedtime period has passed
+            available_time = time_today
+        
+        # Ensure we don't go negative
+        if available_time.total_seconds() < 0:
+            available_time = timedelta(0)
         
         # Use provided intensity or get global intensity
         if intensity_value is not None:
@@ -137,15 +156,16 @@ class TimeCalculation(models.Model):
         intensityX = min(0.95, ((intensityXcap - intensity) * currentTimeInHours()/24)  + (intensity) )
         intensityY = min(0.95, (2 * intensity - intensity**2))
 
-        return time_today * ((intensityX + intensityY)/2)
+        return available_time * ((intensityX + intensityY)/2)
     
     @classmethod
     def get_time_d(cls, target_date):
         """
         Calculate total time available on date d
-        Returns: timedelta object (24 hours for now, can be modified)
+        Excludes bedtime hours (00:00 to 08:00) where no work is done
+        Returns: timedelta object (16 hours available for work)
         """
-        return timedelta(hours=18)
+        return timedelta(hours=16)  # 24 hours - 8 hours bedtime = 16 hours
     
     @classmethod
     def get_free_d(cls, target_date, intensity_value=None):

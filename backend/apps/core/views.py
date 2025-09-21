@@ -103,7 +103,7 @@ def get_intensity_value(request):
     """Get current intensity value"""
     return Response({
         'intensity': get_intensity(),
-        'description': 'Global intensity value (0.0 = low, 1.0 = high)'
+        'description': 'Global intensity value (0.15 = low, 0.85 = high)'
     })
 
 
@@ -120,9 +120,9 @@ def set_intensity_value(request):
     
     try:
         intensity = float(intensity)
-        if not 0.0 <= intensity <= 1.0:
+        if not 0.15 <= intensity <= 0.85:
             return Response(
-                {'error': 'intensity must be between 0.0 and 1.0'}, 
+                {'error': 'intensity must be between 0.15 and 0.85'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         

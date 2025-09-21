@@ -53,7 +53,7 @@ function Home() {
 
   const fetchDashboardStats = async () => {
     try {
-      console.log('Fetching dashboard stats...');
+      console.log('🔄 Fetching dashboard stats...');
       // Fetch dashboard stats from backend
       const response = await fetch('/api/study/dashboard-stats/', {
         method: 'GET',
@@ -64,21 +64,30 @@ function Home() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Dashboard stats received:', data);
-        setDashboardStats(prev => ({
-          ...prev,
-          performanceScore: data.performance_score || 0,
-          workHoursPercentile: data.work_hours_percentile || 0,
-          assignmentCompletionPercent: data.assignment_completion_percent || 0,
-          howAmIDoingScore: data.how_am_i_doing_score || 0
-        }));
-        console.log('Dashboard stats updated in state');
+        console.log('📊 Dashboard stats received:', data);
+        console.log('📊 Personal Score from API:', data.how_am_i_doing_score);
+        console.log('📊 Current state before update:', dashboardStats.howAmIDoingScore);
+        
+        setDashboardStats(prev => {
+          const newStats = {
+            ...prev,
+            performanceScore: data.performance_score || 0,
+            workHoursPercentile: data.work_hours_percentile || 0,
+            assignmentCompletionPercent: data.assignment_completion_percent || 0,
+            howAmIDoingScore: data.how_am_i_doing_score || 0
+          };
+          console.log('📊 Setting new dashboard stats:', newStats);
+          console.log('📊 New Personal Score:', newStats.howAmIDoingScore);
+          return newStats;
+        });
+        
+        console.log('✅ Dashboard stats updated in state');
       } else {
-        console.error('Failed to fetch dashboard stats');
+        console.error('❌ Failed to fetch dashboard stats');
         // Keep current stats if backend fails
       }
     } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
+      console.error('❌ Error fetching dashboard stats:', error);
       // Keep current stats if backend fails
     }
 
@@ -267,18 +276,21 @@ function Home() {
     return getTodaysScheduledTasks().filter(task => task.status === 'completed');
   };
 
-  // Convert backend intensity (0.1-0.8) to frontend percentage (0-100)
+  // Convert backend intensity (0.15-0.85) to frontend percentage (0-100)
   const backendToFrontendIntensity = (backendIntensity) => {
-    return Math.round(((backendIntensity - 0.1) / 0.7) * 100);
+    // Map 0.15-0.85 to 0-100
+    const normalized = (backendIntensity - 0.15) / (0.85 - 0.15);
+    return Math.round(normalized * 100);
   };
 
-  // Convert frontend percentage (0-100) to backend intensity (0.1-0.8)
+  // Convert frontend percentage (0-100) to backend intensity (0.15-0.85)
   const frontendToBackendIntensity = (frontendPercentage) => {
-    return 0.1 + (frontendPercentage / 100) * 0.7;
+    // Map 0-100 to 0.15-0.85
+    return 0.15 + (frontendPercentage / 100) * (0.85 - 0.15);
   };
 
   const handleIntensityChange = async (newIntensity) => {
-    // Convert from 0-100 slider to 0.1-0.8 backend range
+    // Convert from 0-100 slider to 0.15-0.85 backend range
     const backendIntensity = frontendToBackendIntensity(newIntensity);
     
     setDashboardStats(prev => ({
@@ -293,6 +305,9 @@ function Home() {
       
       // Refresh the 14-day schedule with new intensity
       await fetch14DaySchedule();
+      
+      // Refresh dashboard stats to update Personal Score
+      await fetchDashboardStats();
     } catch (error) {
       console.error('Error updating intensity:', error);
     }
@@ -418,6 +433,10 @@ function Home() {
         // Convert backend task to frontend format and add to state
         const frontendTask = apiService.convertBackendTaskToFrontend(response.task);
         setAssignments([...assignments, frontendTask]);
+        
+        // Refresh 14-day schedule and dashboard stats since new task affects scheduling
+        await fetch14DaySchedule();
+        await fetchDashboardStats();
       } else {
         throw new Error('Failed to create task');
       }
@@ -457,11 +476,15 @@ function Home() {
 
       if (!response.ok) {
         console.error('Failed to delete assignment');
+      } else {
+        // Refresh 14-day schedule and dashboard stats since task deletion affects scheduling
+        await fetch14DaySchedule();
+        await fetchDashboardStats();
       }
     } catch (error) {
       console.error('Error deleting assignment:', error);
     }
-  }, []);
+  }, [fetch14DaySchedule, fetchDashboardStats]);
 
   const handleDeleteCompletedAssignment = useCallback(async (assignmentId) => {
     // Update UI immediately
@@ -576,6 +599,10 @@ function Home() {
           completed_so_far: 100,
           is_completed: true
         });
+        
+        // Refresh dashboard stats to update Personal Score
+        console.log('Refreshing dashboard stats after regular task completion...');
+        await fetchDashboardStats();
       } catch (error) {
         console.error('Error updating assignment:', error);
       }
@@ -675,21 +702,25 @@ function Home() {
   );
 
   const handleProgressChange = useCallback((assignmentId, newPercentage) => {
-    console.log('handleProgressChange called:', { assignmentId, newPercentage });
+    console.log('🎯 handleProgressChange called:', { assignmentId, newPercentage });
     
     // Update local state immediately for smooth UI
     handleUpdateProgress(assignmentId, newPercentage);
     
     // If 100%, mark as complete
     if (newPercentage >= 100) {
-      console.log('Progress is 100%, calling handleMarkComplete');
+      console.log('🎯 Progress is 100%, calling handleMarkComplete');
       handleMarkComplete(assignmentId);
     } else {
-      console.log('Progress is not 100%, calling debouncedApiCall');
+      console.log('🎯 Progress is not 100%, calling debouncedApiCall');
       // Debounced API call for progress update
       debouncedApiCall(assignmentId, newPercentage);
     }
-  }, [handleUpdateProgress, handleMarkComplete]);
+    
+    // Always refresh dashboard stats when progress changes
+    console.log('🎯 Refreshing dashboard stats after progress change');
+    fetchDashboardStats();
+  }, [handleUpdateProgress, handleMarkComplete, fetchDashboardStats]);
 
   const handleEditAssignment = useCallback((assignment) => {
     setEditingAssignment(assignment);
@@ -722,13 +753,17 @@ function Home() {
 
       if (!response.ok) {
         console.error('Failed to update assignment on server');
+      } else {
+        // Refresh 14-day schedule and dashboard stats since task editing affects scheduling
+        await fetch14DaySchedule();
+        await fetchDashboardStats();
       }
     } catch (error) {
       console.error('Error updating assignment:', error);
     } finally {
       setEditingAssignment(null);
     }
-  }, []);
+  }, [fetch14DaySchedule, fetchDashboardStats]);
 
   const formatDate = (dateString) => {
     try {

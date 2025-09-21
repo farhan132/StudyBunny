@@ -29,13 +29,13 @@ def set_intensity(value: float) -> None:
     Set the global intensity value in the database
     
     Args:
-        value (float): Intensity value between 0.0 and 1.0
+        value (float): Intensity value between 0.15 and 0.85
         
     Raises:
-        ValueError: If value is not between 0.0 and 1.0
+        ValueError: If value is not between 0.15 and 0.85
     """
-    if not 0.0 <= value <= 1.0:
-        raise ValueError("Intensity must be between 0.0 and 1.0")
+    if not 0.15 <= value <= 0.85:
+        raise ValueError("Intensity must be between 0.15 and 0.85")
     
     try:
         from .models import GlobalIntensity
