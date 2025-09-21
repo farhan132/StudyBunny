@@ -27,7 +27,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'apps.core',
     'apps.study',
-    'voice_agent',
+    # 'voice_agent',  # Temporarily disabled due to Python 3.13 compatibility
 ]
 
 MIDDLEWARE = [

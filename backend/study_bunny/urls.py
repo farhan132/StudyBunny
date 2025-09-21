@@ -8,5 +8,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/study/', include('apps.study.urls')),
     path('api/core/', include('apps.core.urls')),
-    path('api/voice/', include('voice_agent.urls')),
+    # Voice agent temporarily disabled due to Python 3.13 compatibility issues
+    # path('api/voice/', include('voice_agent.urls')),
 ]
