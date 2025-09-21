@@ -19,6 +19,7 @@ function Home() {
     assignmentCompletionPercent: 0,
     howAmIDoingScore: 0
   });
+
   const [newAssignment, setNewAssignment] = useState({
     name: '',
     description: '',
@@ -74,6 +75,22 @@ function Home() {
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
       // Keep current stats if backend fails
+    }
+
+    // Load current intensity from backend
+    try {
+      const intensityData = await apiService.getIntensity();
+      
+      if (intensityData && intensityData.intensity !== undefined) {
+        const frontendIntensity = backendToFrontendIntensity(intensityData.intensity);
+        setDashboardStats(prev => ({
+          ...prev,
+          userIntensity: frontendIntensity
+        }));
+        console.log(`Loaded intensity: ${intensityData.intensity} -> ${frontendIntensity}%`);
+      }
+    } catch (error) {
+      console.error('Error fetching intensity:', error);
     }
   };
 
@@ -195,7 +212,20 @@ function Home() {
     });
   };
 
+  // Convert backend intensity (0.1-0.8) to frontend percentage (0-100)
+  const backendToFrontendIntensity = (backendIntensity) => {
+    return Math.round(((backendIntensity - 0.1) / 0.7) * 100);
+  };
+
+  // Convert frontend percentage (0-100) to backend intensity (0.1-0.8)
+  const frontendToBackendIntensity = (frontendPercentage) => {
+    return 0.1 + (frontendPercentage / 100) * 0.7;
+  };
+
   const handleIntensityChange = async (newIntensity) => {
+    // Convert from 0-100 slider to 0.1-0.8 backend range
+    const backendIntensity = frontendToBackendIntensity(newIntensity);
+    
     setDashboardStats(prev => ({
       ...prev,
       userIntensity: newIntensity
@@ -203,7 +233,11 @@ function Home() {
     
     // Update intensity in backend
     try {
-      await apiService.setIntensity(newIntensity / 100); // Convert to 0-1 scale
+      await apiService.setIntensity(backendIntensity);
+      console.log(`Intensity updated to ${backendIntensity.toFixed(2)} (${newIntensity}%)`);
+      
+      // Refresh the 14-day schedule with new intensity
+      await fetch14DaySchedule();
     } catch (error) {
       console.error('Error updating intensity:', error);
     }

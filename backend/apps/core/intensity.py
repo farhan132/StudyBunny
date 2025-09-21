@@ -8,19 +8,25 @@ from datetime import date, timedelta
 
 def get_intensity() -> float:
     """
-    Get the current global intensity value
+    Get the current global intensity value from the database
     
     Returns:
         float: Intensity value between 0.0 and 1.0
     """
-    return getattr(settings, 'STUDYBUNNY_INTENSITY', 0.7)
+    try:
+        from .models import GlobalIntensity
+        return GlobalIntensity.get_current_intensity()
+    except Exception as e:
+        # If database access fails, fall back to settings
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to load intensity from database: {e}")
+        return getattr(settings, 'STUDYBUNNY_INTENSITY', 0.7)
 
 
 def set_intensity(value: float) -> None:
     """
-    Set the global intensity value
-    Note: This only changes the value in memory, not in settings.py
-    For permanent changes, modify STUDYBUNNY_INTENSITY in settings.py
+    Set the global intensity value in the database
     
     Args:
         value (float): Intensity value between 0.0 and 1.0
@@ -31,8 +37,17 @@ def set_intensity(value: float) -> None:
     if not 0.0 <= value <= 1.0:
         raise ValueError("Intensity must be between 0.0 and 1.0")
     
-    # Update the settings object in memory
-    settings.STUDYBUNNY_INTENSITY = value
+    try:
+        from .models import GlobalIntensity
+        GlobalIntensity.set_intensity(value)
+        # Also update settings in memory for immediate use
+        settings.STUDYBUNNY_INTENSITY = value
+    except Exception as e:
+        # If database access fails, just update settings in memory
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to save intensity to database: {e}")
+        settings.STUDYBUNNY_INTENSITY = value
 
 
 def get_intensity_info() -> Dict[str, Any]:

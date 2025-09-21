@@ -7,6 +7,53 @@ import math
 
 # Create your models here.
 
+class GlobalIntensity(models.Model):
+    """
+    Model to store the global intensity value in the database
+    """
+    intensity = models.FloatField(
+        default=0.7,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Global intensity value between 0.0 and 1.0"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = "Global Intensity"
+        verbose_name_plural = "Global Intensity"
+    
+    def __str__(self):
+        return f"Intensity: {self.intensity}"
+    
+    @classmethod
+    def get_current_intensity(cls):
+        """
+        Get the current intensity value from the database
+        Creates a default record if none exists
+        """
+        intensity_obj, created = cls.objects.get_or_create(
+            id=1,  # Use a fixed ID for the singleton
+            defaults={'intensity': 0.7}
+        )
+        return intensity_obj.intensity
+    
+    @classmethod
+    def set_intensity(cls, value):
+        """
+        Set the intensity value in the database
+        """
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("Intensity must be between 0.0 and 1.0")
+        
+        intensity_obj, created = cls.objects.get_or_create(
+            id=1,  # Use a fixed ID for the singleton
+            defaults={'intensity': value}
+        )
+        intensity_obj.intensity = value
+        intensity_obj.save()
+        return intensity_obj
+
 def currentTimeInHours():
     """
     Get current time in hours (0-24)
