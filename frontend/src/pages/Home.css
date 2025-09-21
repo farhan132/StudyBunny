@@ -508,6 +508,22 @@
   background: #f65e5e;
 }
 
+/* Time-based urgency colors */
+.assignment-card.red {
+  background: #e74c3c !important; /* Red for urgent tasks */
+  color: white;
+}
+
+.assignment-card.yellow {
+  background: #f39c12 !important; /* Yellow for moderate urgency */
+  color: white;
+}
+
+.assignment-card.green {
+  background: #27ae60 !important; /* Green for comfortable tasks */
+  color: white;
+}
+
 .assignment-header {
   display: flex;
   justify-content: center;
@@ -772,6 +788,49 @@
 .assignment-card[data-priority="very high"] .progress-slider::-webkit-slider-thumb {
   background: #d64646;
   border-color: #a53333;
+}
+
+/* Time-based urgency slider colors */
+.assignment-card.red .progress-slider {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.assignment-card.red .progress-slider::-webkit-slider-thumb {
+  background: #c0392b;
+  border-color: #a93226;
+}
+
+.assignment-card.red .progress-slider::-moz-range-thumb {
+  background: #c0392b;
+  border-color: #a93226;
+}
+
+.assignment-card.yellow .progress-slider {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.assignment-card.yellow .progress-slider::-webkit-slider-thumb {
+  background: #d68910;
+  border-color: #b7950b;
+}
+
+.assignment-card.yellow .progress-slider::-moz-range-thumb {
+  background: #d68910;
+  border-color: #b7950b;
+}
+
+.assignment-card.green .progress-slider {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.assignment-card.green .progress-slider::-webkit-slider-thumb {
+  background: #229954;
+  border-color: #1e8449;
+}
+
+.assignment-card.green .progress-slider::-moz-range-thumb {
+  background: #229954;
+  border-color: #1e8449;
 }
 
 .assignment-card[data-priority="very high"] .progress-slider::-moz-range-thumb {
@@ -1579,4 +1638,11 @@
   .intensity-label-small {
     font-size: 0.75rem;
   }
+}
+
+/* Schedule indicator for 14-day allocated time */
+.schedule-indicator {
+  font-size: 0.8em;
+  margin-left: 4px;
+  opacity: 0.7;
 }

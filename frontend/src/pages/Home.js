@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import './shared.css';
 import './Home.css';
 import runningProgress from './runningProgress.png';
+import apiService from '../services/api';
 
 function Home() {
   const [assignments, setAssignments] = useState([]);
@@ -10,6 +11,7 @@ function Home() {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState(null);
+  const [scheduleData, setScheduleData] = useState([]);
   const [dashboardStats, setDashboardStats] = useState({
     performanceScore: 0,
     userIntensity: 50,
@@ -32,6 +34,7 @@ function Home() {
   useEffect(() => {
     fetchAssignments();
     fetchDashboardStats();
+    fetch14DaySchedule();
     
     // Cleanup function to clear timeouts when component unmounts
     return () => {
@@ -66,34 +69,181 @@ function Home() {
         }));
       } else {
         console.error('Failed to fetch dashboard stats');
-        // Use mock data for development
-        setDashboardStats(prev => ({
-          ...prev,
-          performanceScore: Math.floor(Math.random() * 100),
-          workHoursPercentile: 1, // Test with fixed values
-          assignmentCompletionPercent: 20,
-          howAmIDoingScore: 80
-        }));
+        // Keep current stats if backend fails
       }
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
-      // Use mock data as fallback
-      setDashboardStats(prev => ({
-        ...prev,
-        performanceScore: Math.floor(Math.random() * 100),
-        workHoursPercentile: 1,
-        assignmentCompletionPercent: 20,
-        howAmIDoingScore: 80
-      }));
+      // Keep current stats if backend fails
     }
   };
 
+  const fetch14DaySchedule = async () => {
+    try {
+      const response = await apiService.get14DaySchedule();
+      if (response.success) {
+        setScheduleData(response.schedule || []);
+      }
+    } catch (error) {
+      console.error('Error fetching 14-day schedule:', error);
+    }
+  };
 
-  const handleIntensityChange = (newIntensity) => {
+  const getTodayAllocatedTime = (taskTitle) => {
+    if (!scheduleData || scheduleData.length === 0) return null;
+    
+    // Get today's tasks (index 0 in the 14-day schedule)
+    const todayTasks = scheduleData[0] || [];
+    
+    // Find the task with matching title
+    const task = todayTasks.find(t => t.task_title === taskTitle);
+    
+    if (task && task.time_allotted) {
+      // Convert seconds to HH:MM:SS format with 5-minute rounding
+      const seconds = parseFloat(task.time_allotted);
+      let hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = Math.floor(seconds % 60);
+      
+      // Round up to the nearest 5-minute period
+      let roundedMinutes = minutes;
+      if (secs > 0) {
+        roundedMinutes += 1; // Round up if there are any seconds
+      }
+      // Round up to next 5-minute mark
+      roundedMinutes = Math.ceil(roundedMinutes / 5) * 5;
+      
+      // Handle hour overflow
+      if (roundedMinutes >= 60) {
+        const additionalHours = Math.floor(roundedMinutes / 60);
+        hours += additionalHours;
+        roundedMinutes = roundedMinutes % 60;
+      }
+      
+      return `${hours}:${roundedMinutes.toString().padStart(2, '0')}:00`;
+    }
+    
+    return null;
+  };
+
+  // Calculate color based on time ratio (X/E)
+  const getTaskColor = (task) => {
+    if (!task.time_allotted || !task.time_needed_total) return 'green';
+    
+    const timeAllotted = parseFloat(task.time_allotted); // X - free time allocated
+    const timeNeeded = parseFloat(task.time_needed_total); // E - time needed
+    
+    if (timeNeeded === 0) return 'green';
+    
+    const ratio = timeAllotted / timeNeeded;
+    
+    if (ratio <= 2) return 'red';
+    if (ratio <= 10) return 'yellow';
+    return 'green';
+  };
+
+  // Get today's scheduled tasks from the 14-day schedule
+  const getTodaysScheduledTasks = () => {
+    if (!scheduleData || scheduleData.length === 0) return [];
+    
+    // Get today's tasks (index 0 in the 14-day schedule)
+    const todayTasks = scheduleData[0] || [];
+    
+    // Convert schedule tasks to assignment format for display
+    return todayTasks.map(task => {
+      // Format time from seconds to HH:MM:SS string
+      let formattedTime = "0:00:00";
+      if (task.time_allotted) {
+        const seconds = parseFloat(task.time_allotted);
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+        
+        // Round up to the nearest 5-minute period
+        let roundedMinutes = minutes;
+        if (secs > 0) {
+          roundedMinutes += 1;
+        }
+        roundedMinutes = Math.ceil(roundedMinutes / 5) * 5;
+        
+        // Handle hour overflow
+        if (roundedMinutes >= 60) {
+          const additionalHours = Math.floor(roundedMinutes / 60);
+          const finalHours = hours + additionalHours;
+          const finalMinutes = roundedMinutes % 60;
+          formattedTime = `${finalHours}:${finalMinutes.toString().padStart(2, '0')}:00`;
+        } else {
+          formattedTime = `${hours}:${roundedMinutes.toString().padStart(2, '0')}:00`;
+        }
+      }
+      
+      // Calculate color based on time ratio
+      const color = getTaskColor(task);
+      
+      return {
+        id: `schedule_${task.task_id}`,
+        name: task.task_title,
+        description: task.task_description || '',
+        dueDate: task.due_date,
+        priority: task.priority,
+        subject: '', // Not available in schedule data
+        estimatedTime: formattedTime, // Now a formatted string
+        completionPercentage: task.completion_after || 0,
+        status: task.completion_after >= 100 ? 'completed' : 'pending',
+        isScheduled: true, // Flag to indicate this is from schedule
+        color: color // Add color property
+      };
+    });
+  };
+
+  const handleIntensityChange = async (newIntensity) => {
     setDashboardStats(prev => ({
       ...prev,
       userIntensity: newIntensity
     }));
+    
+    // Update intensity in backend
+    try {
+      await apiService.setIntensity(newIntensity / 100); // Convert to 0-1 scale
+    } catch (error) {
+      console.error('Error updating intensity:', error);
+    }
+  };
+
+  const handleVoiceAgent = async () => {
+    try {
+      // Try to capture voice input
+      const response = await apiService.captureVoiceInput();
+      
+      if (response.success) {
+        alert(`Voice command processed: "${response.voice_text}"`);
+        // Refresh assignments to show any changes
+        fetchAssignments();
+      } else {
+        // Fallback to text input
+        const command = prompt('Enter your voice command (e.g., "I finished my math homework"):');
+        if (command) {
+          await apiService.processVoiceCommand(command);
+          alert('Voice command processed!');
+          // Refresh assignments to show any changes
+          fetchAssignments();
+        }
+      }
+    } catch (error) {
+      console.error('Error with voice agent:', error);
+      // Fallback to text input
+      const command = prompt('Voice not available. Enter your command (e.g., "I finished my math homework"):');
+      if (command) {
+        try {
+          await apiService.processVoiceCommand(command);
+          alert('Command processed!');
+          // Refresh assignments to show any changes
+          fetchAssignments();
+        } catch (error) {
+          console.error('Error processing command:', error);
+          alert('Error processing command. Please try again.');
+        }
+      }
+    }
   };
 
   // Get performance bar color based on score with gradient transitions
@@ -127,86 +277,22 @@ function Home() {
   const fetchAssignments = async () => {
     try {
       setLoading(true);
-      // Backend API call to get all assignments
-      const response = await fetch('/api/assignments/', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          // Add authentication headers if needed
-          // 'Authorization': Bearer 
-        }
-      });
+      const response = await apiService.getTasks();
       
-      if (response.ok) {
-        const data = await response.json();
-        const allAssignments = data.assignments || [];
+      if (response.success) {
+        const allAssignments = response.tasks.map(task => apiService.convertBackendTaskToFrontend(task));
         const pending = allAssignments.filter(a => a.status !== 'completed');
         const completed = allAssignments.filter(a => a.status === 'completed');
         setAssignments(pending);
         setCompletedAssignments(completed);
       } else {
-        console.error('Failed to fetch assignments');
-        // Mock data for development
-        const mockAssignments = [
-          {
-            id: 1,
-            name: 'English Paper',
-            description: 'Write a 5-page essay on climate change',
-            dueDate: '2024-09-21',
-            priority: 'high',
-            status: 'pending',
-            subject: 'English',
-            estimatedTime: '4:00:00',
-            completionPercentage: 50
-          },
-          {
-            id: 2,
-            name: 'Math Problem Set',
-            description: 'Complete calculus exercises 1-20',
-            dueDate: '2025-09-25',
-            priority: 'medium',
-            status: 'pending',
-            subject: 'Mathematics',
-            estimatedTime: '2:30:00',
-            completionPercentage: 25
-          },
-          {
-            id: 3,
-            name: 'History Research',
-            description: 'Research paper on World War II',
-            dueDate: '2025-09-28',
-            priority: 'low',
-            status: 'completed',
-            subject: 'History',
-            estimatedTime: '6:00:00',
-            completionPercentage: 100
-          }
-        ];
-        const pending = mockAssignments.filter(a => a.status !== 'completed');
-        const completed = mockAssignments.filter(a => a.status === 'completed');
-        setAssignments(pending);
-        setCompletedAssignments(completed);
+        throw new Error('Failed to fetch tasks');
       }
     } catch (error) {
       console.error('Error fetching assignments:', error);
-      // Use mock data as fallback
-      const fallbackAssignments = [
-        {
-          id: 1,
-          name: 'English Paper',
-          description: 'Write a 5-page essay on climate change',
-          dueDate: '2024-09-21',
-          priority: 'high',
-          status: 'pending',
-          subject: 'English',
-          estimatedTime: '4:00:00',
-          completionPercentage: 50
-        }
-      ];
-      const pending = fallbackAssignments.filter(a => a.status !== 'completed');
-      const completed = fallbackAssignments.filter(a => a.status === 'completed');
-      setAssignments(pending);
-      setCompletedAssignments(completed);
+      // Show empty state if backend is not available
+      setAssignments([]);
+      setCompletedAssignments([]);
     } finally {
       setLoading(false);
     }
@@ -230,34 +316,21 @@ function Home() {
     const estimatedTime = `${newAssignment.estimatedHours.toString().padStart(2, '0')}:${newAssignment.estimatedMinutes.toString().padStart(2, '0')}:00`;
     
     try {
-      // Backend API call to create new assignment
-      const response = await fetch('/api/assignments/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Add authentication headers if needed
-          // 'Authorization': Bearer 
-        },
-        body: JSON.stringify({
-          ...newAssignment,
-          estimatedTime: estimatedTime,
-          status: 'pending'
-        })
+      // Create task using API service
+      const taskData = apiService.convertFrontendTaskToBackend({
+        ...newAssignment,
+        estimatedTime: estimatedTime,
+        status: 'pending'
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAssignments([...assignments, data.assignment]);
+      
+      const response = await apiService.createTask(taskData);
+      
+      if (response.success) {
+        // Convert backend task to frontend format and add to state
+        const frontendTask = apiService.convertBackendTaskToFrontend(response.task);
+        setAssignments([...assignments, frontendTask]);
       } else {
-        console.error('Failed to create assignment');
-        // Add to local state if backend fails
-        const newId = Math.max(...assignments.map(a => a.id), 0) + 1;
-        setAssignments([...assignments, { 
-          ...newAssignment, 
-          id: newId, 
-          estimatedTime: estimatedTime,
-          status: 'pending'
-        }]);
+        throw new Error('Failed to create task');
       }
       
       // Reset form
@@ -274,25 +347,7 @@ function Home() {
       setShowAddForm(false);
     } catch (error) {
       console.error('Error creating assignment:', error);
-      // Add to local state as fallback
-      const newId = Math.max(...assignments.map(a => a.id), 0) + 1;
-      setAssignments([...assignments, { 
-        ...newAssignment, 
-        id: newId, 
-        estimatedTime: estimatedTime,
-        status: 'pending'
-      }]);
-      setNewAssignment({ 
-        name: '', 
-        description: '', 
-        dueDate: new Date().toISOString().split('T')[0], // Today's date
-        priority: 'medium', 
-        subject: '',
-        estimatedHours: 0,
-        estimatedMinutes: 0,
-        completionPercentage: 0
-      });
-      setShowAddForm(false);
+      alert('Failed to create assignment. Please try again.');
     }
   };
 
@@ -343,6 +398,10 @@ function Home() {
   }, []);
 
   const handleUndoComplete = useCallback(async (assignmentId) => {
+    // Find the assignment to get its name
+    const assignment = completedAssignments.find(a => a.id === assignmentId);
+    if (!assignment) return;
+
     // Update UI immediately
     setCompletedAssignments(prevCompleted => {
       const assignmentToMove = prevCompleted.find(a => a.id === assignmentId);
@@ -356,21 +415,19 @@ function Home() {
 
     // API call in background
     try {
-      const response = await fetch(`/api/assignments/${assignmentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'pending' })
+      await apiService.updateTask(assignment.name, {
+        is_completed: false
       });
-
-      if (!response.ok) {
-        console.error('Failed to update assignment on server');
-      }
     } catch (error) {
       console.error('Error undoing completion:', error);
     }
-  }, []);
+  }, [completedAssignments]);
 
   const handleMarkComplete = useCallback(async (assignmentId) => {
+    // Find the assignment to get its name
+    const assignment = assignments.find(a => a.id === assignmentId);
+    if (!assignment) return;
+
     // Update UI immediately for better responsiveness
     setAssignments(prevAssignments => {
       const assignmentToMove = prevAssignments.find(a => a.id === assignmentId);
@@ -392,19 +449,14 @@ function Home() {
 
     // API call in background
     try {
-      const response = await fetch(`/api/assignments/${assignmentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed', completionPercentage: 100 })
+      await apiService.updateTask(assignment.name, {
+        completed_so_far: 100,
+        is_completed: true
       });
-
-      if (!response.ok) {
-        console.error('Failed to update assignment on server');
-      }
     } catch (error) {
       console.error('Error updating assignment:', error);
     }
-  }, []);
+  }, [assignments]);
 
   const handleUpdateProgress = useCallback((assignmentId, newPercentage) => {
     // Update local state immediately for smooth UI using functional update
@@ -431,14 +483,11 @@ function Home() {
       // Set new timeout
       window.progressTimeouts[assignmentId] = setTimeout(async () => {
         try {
-          const response = await fetch(`/api/assignments/${assignmentId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ completionPercentage: newPercentage })
-          });
-
-          if (!response.ok) {
-            console.error('Failed to update progress on server');
+          const assignment = assignments.find(a => a.id === assignmentId);
+          if (assignment) {
+            await apiService.updateTask(assignment.name, {
+              completed_so_far: newPercentage
+            });
           }
         } catch (error) {
           console.error('Error updating progress:', error);
@@ -450,16 +499,21 @@ function Home() {
         }
       }, 500); // Increased delay to 500ms for better performance
     },
-    []
+    [assignments]
   );
 
   const handleProgressChange = useCallback((assignmentId, newPercentage) => {
     // Update local state immediately for smooth UI
     handleUpdateProgress(assignmentId, newPercentage);
     
-    // Debounced API call
-    debouncedApiCall(assignmentId, newPercentage);
-  }, [handleUpdateProgress, debouncedApiCall]);
+    // If 100%, mark as complete
+    if (newPercentage >= 100) {
+      handleMarkComplete(assignmentId);
+    } else {
+      // Debounced API call for progress update
+      debouncedApiCall(assignmentId, newPercentage);
+    }
+  }, [handleUpdateProgress, debouncedApiCall, handleMarkComplete]);
 
   const handleEditAssignment = useCallback((assignment) => {
     setEditingAssignment(assignment);
@@ -832,14 +886,11 @@ function Home() {
       
       <div className="assignments-section">
         <div className="section-header">
-          <h2>Your Assignments</h2>
+          <h2>Today's Tasks</h2>
           <div className="assignment-actions-header">
             <button 
               className="voice-ai-btn circular-btn"
-              onClick={() => {
-                // Voice AI functionality will be implemented here
-                console.log('Voice AI agent activated');
-              }}
+              onClick={handleVoiceAgent}
               title="Voice AI Agent - Edit assignments with voice commands"
             >
               🎤
@@ -938,16 +989,16 @@ function Home() {
         )}
 
         {loading ? (
-          <div className="loading">Loading assignments...</div>
+          <div className="loading">Loading today's schedule...</div>
         ) : (
           <div className="assignments-grid">
-            {assignments.length === 0 ? (
+            {getTodaysScheduledTasks().length === 0 ? (
               <div className="no-assignments">
-                <p>No assignments yet. Click the + button to add your first assignment!</p>
+                <p>No tasks scheduled for today. Check the calendar for your 14-day schedule!</p>
               </div>
             ) : (
-              sortAssignmentsByPriority(assignments).map(assignment => (
-                <div key={assignment.id} className="assignment-card" data-priority={assignment.priority}>
+              sortAssignmentsByPriority(getTodaysScheduledTasks()).map(assignment => (
+                <div key={assignment.id} className={`assignment-card ${assignment.color || 'green'}`} data-priority={assignment.priority}>
                   <div className="assignment-actions">
                     {assignment.status !== 'completed' && (
                       <button 
@@ -976,7 +1027,10 @@ function Home() {
 
                   <div className="assignment-header">
                     <h3 className="assignment-title">{assignment.name}</h3>
-                    <div className="assignment-time">{formatTimeLeft(assignment.estimatedTime)}</div>
+                    <div className="assignment-time" title="Allocated time from 14-day schedule">
+                      {formatTimeLeft(assignment.estimatedTime)}
+                      <span className="schedule-indicator"> 📅</span>
+                    </div>
                   </div>
                   
                   <div className="progress-section">
@@ -1029,20 +1083,20 @@ function Home() {
       {/* Completed Assignments Section */}
       <div className="assignments-section">
         <div className="section-header">
-          <h2>Completed Assignments</h2>
+          <h2>Today's Completed Tasks</h2>
         </div>
 
         {loading ? (
-          <div className="loading">Loading completed assignments...</div>
+          <div className="loading">Loading today's completed tasks...</div>
         ) : (
           <div className="assignments-grid">
-            {completedAssignments.length === 0 ? (
+            {getTodaysScheduledTasks().filter(task => task.status === 'completed').length === 0 ? (
               <div className="no-assignments">
-                <p>No completed assignments yet. Complete some assignments to see them here!</p>
+                <p>No completed tasks for today yet. Complete some tasks to see them here!</p>
               </div>
             ) : (
-              sortAssignmentsByPriority(completedAssignments).map(assignment => (
-                <div key={assignment.id} className="assignment-card completed-assignment" data-priority={assignment.priority}>
+              sortAssignmentsByPriority(getTodaysScheduledTasks().filter(task => task.status === 'completed')).map(assignment => (
+                <div key={assignment.id} className={`assignment-card completed-assignment ${assignment.color || 'green'}`} data-priority={assignment.priority}>
                   <div className="assignment-actions">
                     <button 
                       className="undo-btn"
@@ -1069,7 +1123,10 @@ function Home() {
 
                   <div className="assignment-header">
                     <h3 className="assignment-title">{assignment.name}</h3>
-                    <div className="assignment-time">{formatTimeLeft(assignment.estimatedTime)}</div>
+                    <div className="assignment-time" title="Allocated time from 14-day schedule">
+                      {formatTimeLeft(assignment.estimatedTime)}
+                      <span className="schedule-indicator"> 📅</span>
+                    </div>
                   </div>
                   
                   <div className="progress-section">

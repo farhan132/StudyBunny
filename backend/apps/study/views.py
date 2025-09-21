@@ -5,11 +5,15 @@ from django.utils import timezone
 from django.db import models
 from datetime import date, timedelta
 from .models import Task, DailySchedule, TaskAssignment
-from .task_utils import update_task_by_name, get_task_by_name
+from .task_utils import update_task_by_name, get_task_by_name, generate_daily_plan, get_14_day_schedule as generate_14_day_schedule
+from django.contrib.auth import get_user_model
+from apps.core.intensity import get_intensity, set_intensity
+
+User = get_user_model()
 
 
 @api_view(['PATCH'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 def update_task_by_name_api(request):
     """
     Update a task by its name with partial parameters
@@ -45,7 +49,7 @@ def update_task_by_name_api(request):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 def get_task_by_name_api(request):
     """
     Get a task by its name
@@ -71,12 +75,16 @@ def get_task_by_name_api(request):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 def list_user_tasks(request):
     """
     List all tasks for the authenticated user with optional filtering
     """
-    queryset = Task.objects.filter(user=request.user)
+    user, created = User.objects.get_or_create(
+        username='demo_user',
+        defaults={'email': 'demo@studybunny.com', 'first_name': 'Demo', 'last_name': 'User'}
+    )
+    queryset = Task.objects.filter(user=user)
     
     # Filter by completion status
     is_completed = request.query_params.get('is_completed')
@@ -147,7 +155,7 @@ def list_user_tasks(request):
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 def create_task(request):
     """
     Create a new task
@@ -197,9 +205,15 @@ def create_task(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Get or create demo user
+        user, created = User.objects.get_or_create(
+            username='demo_user',
+            defaults={'email': 'demo@studybunny.com', 'first_name': 'Demo', 'last_name': 'User'}
+        )
+        
         # Create the task
         task = Task.objects.create(
-            user=request.user,
+            user=user,
             title=request.data['title'],
             description=request.data.get('description', ''),
             T_n=T_n,
@@ -236,4 +250,197 @@ def create_task(request):
         return Response(
             {'error': f'An error occurred while creating task: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def list_daily_schedules(request):
+    """List daily schedules for the user"""
+    user, created = User.objects.get_or_create(
+        username='demo_user',
+        defaults={'email': 'demo@studybunny.com', 'first_name': 'Demo', 'last_name': 'User'}
+    )
+    
+    schedules = DailySchedule.objects.filter(user=user).order_by('-date')
+    schedules_data = []
+    
+    for schedule in schedules:
+        schedules_data.append({
+            'id': schedule.id,
+            'date': schedule.date.isoformat(),
+            'created_at': schedule.created_at.isoformat(),
+            'updated_at': schedule.updated_at.isoformat()
+        })
+    
+    return Response({
+        'success': True,
+        'schedules': schedules_data,
+        'count': len(schedules_data)
+    })
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def create_daily_schedule(request):
+    """Create a new daily schedule"""
+    user, created = User.objects.get_or_create(
+        username='demo_user',
+        defaults={'email': 'demo@studybunny.com', 'first_name': 'Demo', 'last_name': 'User'}
+    )
+    
+    try:
+        schedule_date = date.fromisoformat(request.data.get('date', timezone.now().date().isoformat()))
+        
+        schedule = DailySchedule.objects.create(
+            user=user,
+            date=schedule_date
+        )
+        
+        return Response({
+            'success': True,
+            'schedule': {
+                'id': schedule.id,
+                'date': schedule.date.isoformat(),
+                'created_at': schedule.created_at.isoformat(),
+                'updated_at': schedule.updated_at.isoformat()
+            }
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error creating schedule: {str(e)}'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_daily_schedule(request, pk):
+    """Get a specific daily schedule"""
+    try:
+        schedule = DailySchedule.objects.get(pk=pk)
+        return Response({
+            'success': True,
+            'schedule': {
+                'id': schedule.id,
+                'date': schedule.date.isoformat(),
+                'created_at': schedule.created_at.isoformat(),
+                'updated_at': schedule.updated_at.isoformat()
+            }
+        })
+    except DailySchedule.DoesNotExist:
+        return Response(
+            {'error': 'Schedule not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def generate_daily_plan(request):
+    """Generate daily task plan"""
+    user, created = User.objects.get_or_create(
+        username='demo_user',
+        defaults={'email': 'demo@studybunny.com', 'first_name': 'Demo', 'last_name': 'User'}
+    )
+    
+    try:
+        target_date = date.fromisoformat(request.data.get('date', timezone.now().date().isoformat()))
+        intensity = get_intensity()
+        
+        plan = generate_daily_plan(user, target_date, intensity)
+        
+        return Response({
+            'success': True,
+            'plan': plan,
+            'date': target_date.isoformat(),
+            'intensity': intensity
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error generating plan: {str(e)}'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_14_day_schedule(request):
+    """Get 14-day schedule"""
+    user, created = User.objects.get_or_create(
+        username='demo_user',
+        defaults={'email': 'demo@studybunny.com', 'first_name': 'Demo', 'last_name': 'User'}
+    )
+    
+    try:
+        start_date = request.query_params.get('start_date')
+        if start_date:
+            start_date = date.fromisoformat(start_date)
+        else:
+            # Let the function handle timezone-aware default start date
+            start_date = None
+        
+        schedule_result = generate_14_day_schedule(user, start_date)
+        
+        return Response(schedule_result)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error generating 14-day schedule: {str(e)}'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_statistics(request):
+    """Get task statistics"""
+    user, created = User.objects.get_or_create(
+        username='demo_user',
+        defaults={'email': 'demo@studybunny.com', 'first_name': 'Demo', 'last_name': 'User'}
+    )
+    
+    try:
+        # Get all tasks
+        all_tasks = Task.objects.filter(user=user)
+        completed_tasks = all_tasks.filter(is_completed=True)
+        
+        # Calculate statistics
+        total_tasks = all_tasks.count()
+        completed_count = completed_tasks.count()
+        completion_rate = (completed_count / total_tasks * 100) if total_tasks > 0 else 0
+        
+        # Calculate total study hours
+        total_hours = 0
+        for task in all_tasks:
+            hours = task.T_n.total_seconds() / 3600
+            total_hours += hours
+        
+        # Get intensity-based score
+        intensity = get_intensity()
+        intensity_score = int(intensity * 100)  # Convert to 0-100 scale
+        
+        # Calculate assignments done today
+        today = timezone.now().date()
+        today_completed = completed_tasks.filter(updated_at__date=today).count()
+        
+        return Response({
+            'success': True,
+            'statistics': {
+                'total_tasks': total_tasks,
+                'completed_tasks': completed_count,
+                'completion_rate': round(completion_rate, 1),
+                'total_study_hours': round(total_hours, 1),
+                'intensity_score': intensity_score,
+                'assignments_done_today': today_completed,
+                'current_intensity': intensity
+            }
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error getting statistics: {str(e)}'}, 
+            status=status.HTTP_400_BAD_REQUEST
         )

@@ -34,6 +34,171 @@
   background-color: #e9ecef;
 }
 
+.calendar-day.today {
+  background-color: #e3f2fd;
+  border: 2px solid #2196f3;
+}
+
+.calendar-day.empty {
+  background-color: #f8f9fa;
+}
+
+.task-indicators {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.task-indicator {
+  background-color: #007bff;
+  color: white;
+  font-size: 0.7em;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+
+.more-tasks {
+  background-color: #6c757d;
+  color: white;
+  font-size: 0.6em;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+.schedule-info {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 5px;
+}
+
+.schedule-info h3 {
+  color: #155724;
+  margin-bottom: 10px;
+}
+
+.schedule-info p {
+  color: #155724;
+  margin: 0;
+}
+
+/* Day Details Modal */
+.day-details-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.day-details-content {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.day-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.day-details-header h3 {
+  margin: 0;
+  color: #495057;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6c757d;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-btn:hover {
+  color: #495057;
+}
+
+.day-tasks h4 {
+  color: #495057;
+  margin-bottom: 15px;
+}
+
+.task-item {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 5px;
+  padding: 15px;
+  margin-bottom: 10px;
+}
+
+.task-name {
+  font-weight: bold;
+  color: #495057;
+  margin-bottom: 8px;
+  font-size: 1.1em;
+}
+
+.task-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+
+.task-details span {
+  background: #e9ecef;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 0.9em;
+  color: #495057;
+}
+
+.task-reason {
+  font-style: italic;
+  color: #6c757d;
+  font-size: 0.9em;
+  margin-top: 5px;
+}
+
+.no-tasks {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6c757d;
+}
+
+.calendar-day.selected {
+  background-color: #fff3cd;
+  border: 2px solid #ffc107;
+}
+
+.calendar-day {
+  cursor: pointer;
+}
+
 /* Mobile responsiveness for Calendar */
 @media (max-width: 768px) {
   .calendar-placeholder {

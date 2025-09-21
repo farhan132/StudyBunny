@@ -46,12 +46,21 @@ class TimeCalculation(models.Model):
         if target_date is None:
             target_date = timezone.now().date()
         
-        now = timezone.now()
-        midnight = timezone.make_aware(
-            datetime.combine(target_date + timedelta(days=1), datetime.min.time())
+        # Convert to user's timezone (CDT) for accurate time calculation
+        import pytz
+        user_tz = pytz.timezone('America/Chicago')  # CDT timezone
+        now_utc = timezone.now()
+        now_user = now_utc.astimezone(user_tz)
+        
+        # Use the user's current date, not the target_date
+        user_today = now_user.date()
+        
+        # Calculate midnight in user's timezone for today
+        user_midnight = user_tz.localize(
+            datetime.combine(user_today + timedelta(days=1), datetime.min.time())
         )
         
-        time_left = midnight - now
+        time_left = user_midnight - now_user
         return max(timedelta(0), time_left)  # Don't return negative time
     
     @classmethod
