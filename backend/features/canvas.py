@@ -263,24 +263,43 @@ class CanvasIntegrator:
             timedelta: Estimated time needed
         """
         points = assignment.get('points_possible', 10)
+        if points is None:
+            points = 10  # Default to 10 points if None
+        
         assignment_group = assignment.get('assignment_group', {}).get('name', '').lower()
         
-        # Base time calculation: 1 hour per 10 points
-        base_hours = max(1, points / 10)
-        
-        # Adjust based on assignment type
-        multiplier = 1.0
-        if 'exam' in assignment_group or 'test' in assignment_group:
-            multiplier = 0.5  # Exams are usually shorter but intense
-        elif 'project' in assignment_group or 'paper' in assignment_group:
-            multiplier = 2.0  # Projects take longer
-        elif 'homework' in assignment_group or 'assignment' in assignment_group:
-            multiplier = 1.0  # Standard homework
-        elif 'quiz' in assignment_group:
-            multiplier = 0.3  # Quizzes are quick
+        # Special handling for problem sets - always 6 hours
+        assignment_name = assignment.get('name', '').lower()
+        if 'pset' in assignment_name or 'problem set' in assignment_name:
+            base_hours = 6.0  # Problem sets always take 6 hours
+            multiplier = 1.0
+        else:
+            # Base time calculation: 1 hour per 10 points
+            base_hours = max(1, points / 10)
+            
+            # Adjust based on assignment type
+            multiplier = 1.0
+            if 'exam' in assignment_group or 'test' in assignment_group:
+                multiplier = 0.5  # Exams are usually shorter but intense
+            elif 'project' in assignment_group or 'paper' in assignment_group:
+                multiplier = 2.0  # Projects take longer
+            elif 'homework' in assignment_group or 'assignment' in assignment_group:
+                multiplier = 1.0  # Standard homework
+            elif 'quiz' in assignment_group:
+                multiplier = 0.3  # Quizzes are quick
         
         estimated_hours = base_hours * multiplier
-        return timedelta(hours=min(20, max(0.5, estimated_hours)))  # Cap between 30min and 20 hours
+        final_hours = min(20, max(0.5, estimated_hours))
+        
+        print(f"🔍 CANVAS TIME ESTIMATION:")
+        print(f"   Assignment: {assignment.get('name', 'Unknown')}")
+        print(f"   Points: {points}")
+        print(f"   Assignment Group: {assignment_group}")
+        print(f"   Base Hours: {base_hours}")
+        print(f"   Multiplier: {multiplier}")
+        print(f"   Final Hours: {final_hours}")
+        
+        return timedelta(hours=final_hours)
     
     def _calculate_priority(self, assignment):
         """
@@ -297,6 +316,8 @@ class CanvasIntegrator:
         
         days_until_due = (assignment['due_date'] - datetime.now().date()).days
         points = assignment.get('points_possible', 10)
+        if points is None:
+            points = 10  # Default to 10 points if None
         
         # High priority if due soon or worth many points
         if days_until_due <= 1:

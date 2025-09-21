@@ -241,6 +241,67 @@ class ApiService {
     };
     return deltaMap[delta] || 'medium';
   }
+
+  // Canvas integration methods
+  async syncCanvasTasks() {
+    try {
+      const response = await fetch('/api/study/canvas/sync/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error syncing Canvas tasks:', error);
+      throw error;
+    }
+  }
+
+  async getCanvasCourses() {
+    try {
+      const response = await fetch('/api/study/canvas/courses/', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching Canvas courses:', error);
+      throw error;
+    }
+  }
+
+  async getCanvasAssignments(daysAhead = 14) {
+    try {
+      const response = await fetch(`/api/study/canvas/assignments/?days_ahead=${daysAhead}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching Canvas assignments:', error);
+      throw error;
+    }
+  }
 }
 
 // Create and export a singleton instance

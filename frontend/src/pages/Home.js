@@ -350,6 +350,29 @@ function Home() {
     }
   };
 
+  const handleCanvasSync = async () => {
+    try {
+      console.log('🔄 Syncing Canvas tasks...');
+      const response = await apiService.syncCanvasTasks();
+      
+      if (response.success) {
+        console.log('✅ Canvas sync successful:', response);
+        alert(`Canvas sync successful! Created ${response.tasks_created} tasks from Canvas assignments.`);
+        
+        // Refresh assignments, schedule, and dashboard stats
+        await fetchAssignments();
+        await fetch14DaySchedule();
+        await fetchDashboardStats();
+      } else {
+        console.error('❌ Canvas sync failed:', response);
+        alert(`Canvas sync failed: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('❌ Error syncing Canvas tasks:', error);
+      alert(`Error syncing Canvas tasks: ${error.message}`);
+    }
+  };
+
   // Get performance bar color based on score with gradient transitions
   const getPerformanceBarColor = (score) => {
     if (score >= 67) {
@@ -1099,6 +1122,13 @@ function Home() {
         <div className="section-header">
           <h2>Today's Tasks</h2>
           <div className="assignment-actions-header">
+            <button 
+              className="canvas-sync-btn circular-btn"
+              onClick={handleCanvasSync}
+              title="Sync Canvas Assignments - Import tasks from Canvas LMS"
+            >
+              🎨
+            </button>
             <button 
               className="voice-ai-btn circular-btn"
               onClick={handleVoiceAgent}

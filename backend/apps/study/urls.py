@@ -24,4 +24,9 @@ urlpatterns = [
     
     # Dashboard endpoints
     path('dashboard-stats/', views.get_dashboard_stats, name='get-dashboard-stats'),
+    
+    # Canvas integration endpoints
+    path('canvas/sync/', views.sync_canvas_tasks, name='sync-canvas-tasks'),
+    path('canvas/courses/', views.get_canvas_courses, name='get-canvas-courses'),
+    path('canvas/assignments/', views.get_canvas_assignments, name='get-canvas-assignments'),
 ]

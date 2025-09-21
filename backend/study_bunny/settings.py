@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'apps.core',
     'apps.study',
     'voice_agent',
+    'features',
 ]
 
 MIDDLEWARE = [
@@ -107,3 +108,7 @@ CORS_ALLOWED_ORIGINS = [
 # 0.0 = Very low intensity, 1.0 = Maximum intensity
 # Change this value anytime to adjust system behavior
 STUDYBUNNY_INTENSITY = 0.7
+
+# Canvas Integration Settings
+CANVAS_API_TOKEN = '7867~GJxFLY3HMHGQRD6cHvVckvFQV2zBwN2nAtvTDJVMZBtuufeDvVrtymDGyvKEXayH'
+CANVAS_BASE_URL = 'https://canvas.instructure.com'

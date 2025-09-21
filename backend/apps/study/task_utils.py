@@ -1314,21 +1314,49 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
         
         # Convert tasks to a list for processing
         tasks_list = list(all_tasks)
+        
+        # Mark tasks past due date as completed (100% progress)
+        today = timezone.now().date()
+        for task in tasks_list:
+            if task.due_date < today and not task.is_completed:
+                print(f"📅 Task '{task.title}' is past due ({task.due_date}), marking as completed")
+                task.completed_so_far = 100.0
+                task.is_completed = True
+                task.save()
+        
+        # Filter out completed tasks for scheduling
+        incomplete_tasks = [task for task in tasks_list if not task.is_completed]
+        print(f"📊 Total tasks: {len(tasks_list)}, Incomplete tasks: {len(incomplete_tasks)}")
+        
         schedule = [[] for _ in range(14)]  # 14 empty days
         total_tasks_scheduled = 0
         intensity_values = []
         
-        # Use binary search to find minimum intensity needed for all tasks
-        print(f"🔍 Finding minimum intensity for all tasks...")
-        # Find the latest due date among all tasks
-        latest_due_date = max(task.due_date for task in all_tasks)
-        print(f"Latest due date: {latest_due_date}")
-        
-        min_intensity_result = find_minimum_intensity_for_completion(
-            user=user,
-            start_date=start_date,
-            end_date=latest_due_date  # Use actual task deadlines, not fixed 14 days
-        )
+        # Use binary search to find minimum intensity needed for incomplete tasks only
+        if incomplete_tasks:
+            print(f"🔍 Finding minimum intensity for {len(incomplete_tasks)} incomplete tasks...")
+            # Find the latest due date among incomplete tasks
+            latest_due_date = max(task.due_date for task in incomplete_tasks)
+            print(f"Latest due date: {latest_due_date}")
+            
+            min_intensity_result = find_minimum_intensity_for_completion(
+                user=user,
+                start_date=start_date,
+                end_date=latest_due_date  # Use actual task deadlines, not fixed 14 days
+            )
+        else:
+            print(f"✅ All tasks are completed, no minimum intensity needed")
+            min_intensity_result = {
+                'success': True,
+                'minimum_intensity': 0.0,
+                'can_complete_all': True,
+                'total_tasks': len(tasks_list),
+                'iterations_used': 0,
+                'precision_achieved': 0.0,
+                'search_range': {'low': 0.0, 'high': 0.0},
+                'schedule_analysis': None,
+                'message': 'All tasks completed - minimum intensity is 0.0'
+            }
         
         if not min_intensity_result['success']:
             print(f"❌ Error finding minimum intensity: {min_intensity_result.get('error', 'Unknown')}")
@@ -1348,7 +1376,7 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
         
         # Track task progress across the 14-day schedule
         task_progress = {}
-        for task in all_tasks:
+        for task in tasks_list:
             task_progress[task.id] = task.completed_so_far
         
         # Process each day using the exact same algorithm as binary search
@@ -1358,16 +1386,16 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
             
             # For 14-day schedule, we want to distribute tasks across all 14 days
             # Get all incomplete tasks that are due on or after this date
-            incomplete_tasks = []
-            for task in all_tasks:
-                if task_progress.get(task.id, 0.0) < 100.0 and task.due_date >= current_date:
-                    incomplete_tasks.append(task)
-            
-            print(f"   🔍 Incomplete tasks: {len(incomplete_tasks)}")
+            day_incomplete_tasks = []
             for task in incomplete_tasks:
+                if task_progress.get(task.id, 0.0) < 100.0 and task.due_date >= current_date:
+                    day_incomplete_tasks.append(task)
+            
+            print(f"   🔍 Incomplete tasks: {len(day_incomplete_tasks)}")
+            for task in day_incomplete_tasks:
                 print(f"      • {task.title} (due: {task.due_date}, progress: {task_progress.get(task.id, 0.0):.1f}%)")
             
-            if not incomplete_tasks:
+            if not day_incomplete_tasks:
                 print(f"   ⚠️ No incomplete tasks to schedule for {current_date}")
                 intensity_values.append(0.0)
                 continue
@@ -1389,7 +1417,7 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
                 remaining_time = day_free_time
                 daily_plan = []
                 
-                for task in incomplete_tasks:
+                for task in day_incomplete_tasks:
                     completion_percentage = task_progress.get(task.id, 0.0) / 100.0
                     remaining_percentage = 1.0 - completion_percentage
                     time_needed = task.T_n * remaining_percentage

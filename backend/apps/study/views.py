@@ -8,6 +8,7 @@ from .models import Task, DailySchedule, TaskAssignment
 from .task_utils import update_task_by_name, get_task_by_name, generate_daily_plan, get_14_day_schedule as generate_14_day_schedule
 from django.contrib.auth import get_user_model
 from apps.core.intensity import get_intensity, set_intensity
+from django.conf import settings
 
 User = get_user_model()
 
@@ -577,14 +578,16 @@ def get_dashboard_stats(request):
         # Get required intensity from 14-day simulation
         try:
             schedule_result = generate_14_day_schedule(demo_user)
+            print(f"🔍 DEBUG: Full schedule result: {schedule_result}")
             if schedule_result and 'minimum_required_intensity' in schedule_result:
                 minimum_required_intensity = schedule_result['minimum_required_intensity']
-                print(f"Dashboard stats - Minimum required intensity from 14-day schedule: {minimum_required_intensity}")
+                print(f"🔍 DEBUG: Minimum required intensity from 14-day schedule: {minimum_required_intensity}")
+                print(f"🔍 DEBUG: Type of minimum_required_intensity: {type(minimum_required_intensity)}")
             else:
                 minimum_required_intensity = 0.5  # Default if no simulation data
-                print(f"Dashboard stats - Using default minimum required intensity: {minimum_required_intensity}")
+                print(f"🔍 DEBUG: Using default minimum required intensity: {minimum_required_intensity}")
         except Exception as e:
-            print(f"Error getting 14-day schedule intensity: {e}")
+            print(f"🔍 DEBUG: Error getting 14-day schedule intensity: {e}")
             minimum_required_intensity = 0.5  # Default on error
         
         # Calculate Personal Score based on minimum required intensity from 14-day simulation
@@ -592,8 +595,14 @@ def get_dashboard_stats(request):
         # 0.5 minimum required intensity = 75 score
         # Formula: Score = 100 - (minimum_required_intensity * 75)
         # This gives: 0.5 -> 62.5, 0.0 -> 100, 1.0 -> 25, 0.8 -> 40
+        
+        # Handle invalid minimum_required_intensity values
+        if minimum_required_intensity is None or minimum_required_intensity < 0:
+            print(f"🔍 DEBUG: Invalid minimum_required_intensity: {minimum_required_intensity}, using default 0.5")
+            minimum_required_intensity = 0.5
+        
         personal_score = max(0, min(100, 100 - (minimum_required_intensity * 75)))
-        print(f"🎯 PERSONAL SCORE CALCULATION:")
+        print(f"🔍 DEBUG: PERSONAL SCORE CALCULATION:")
         print(f"   📊 Minimum Required Intensity: {minimum_required_intensity:.6f}")
         print(f"   📊 Global Intensity (NOT USED): {current_intensity:.6f}")
         print(f"   📊 Formula: 100 - ({minimum_required_intensity:.6f} * 75) = {personal_score:.1f}")
@@ -637,4 +646,145 @@ def get_dashboard_stats(request):
         return Response(
             {'error': f'Error getting dashboard stats: {str(e)}'}, 
             status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def sync_canvas_tasks(request):
+    """
+    Sync Canvas assignments to StudyBunny tasks
+    """
+    try:
+        # Get demo user
+        demo_user, created = User.objects.get_or_create(
+            username='demo_user',
+            defaults={'email': 'demo@example.com'}
+        )
+        
+        # Get Canvas configuration from settings
+        canvas_token = getattr(settings, 'CANVAS_API_TOKEN', None)
+        canvas_base_url = getattr(settings, 'CANVAS_BASE_URL', 'https://canvas.instructure.com')
+        
+        if not canvas_token:
+            return Response(
+                {'error': 'Canvas API token not configured'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Import Canvas functions lazily
+        from features import get_sync_canvas_homework
+        sync_canvas_homework = get_sync_canvas_homework()
+        
+        # Sync Canvas homework to StudyBunny tasks
+        sync_results = sync_canvas_homework(
+            user=demo_user, 
+            api_token=canvas_token,
+            canvas_url=canvas_base_url
+        )
+        
+        if sync_results['tasks_created'] > 0 or len(sync_results['errors']) == 0:
+            return Response({
+                'success': True,
+                'message': f"Synced {sync_results['tasks_created']} tasks from {sync_results['courses_synced']} courses",
+                'tasks_created': sync_results['tasks_created'],
+                'courses_synced': sync_results['courses_synced'],
+                'assignments_synced': sync_results['assignments_synced'],
+                'canvas_sync': True,
+                'errors': sync_results['errors']
+            })
+        else:
+            return Response(
+                {'error': f'Canvas sync failed: {sync_results["errors"]}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+    except Exception as e:
+        return Response(
+            {'error': f'Error syncing Canvas tasks: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_canvas_courses(request):
+    """
+    Get Canvas courses for the user
+    """
+    try:
+        # Get Canvas configuration from settings
+        canvas_token = getattr(settings, 'CANVAS_API_TOKEN', None)
+        canvas_base_url = getattr(settings, 'CANVAS_BASE_URL', 'https://canvas.instructure.com')
+        
+        if not canvas_token:
+            return Response(
+                {'error': 'Canvas API token not configured'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Import Canvas functions lazily
+        from features import get_canvas_integrator
+        CanvasIntegrator = get_canvas_integrator()
+        
+        # Initialize Canvas integrator
+        canvas = CanvasIntegrator(canvas_token, canvas_base_url)
+        
+        # Fetch courses
+        courses = canvas.fetch_all_courses()
+        
+        return Response({
+            'success': True,
+            'courses': courses,
+            'total_courses': len(courses)
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error fetching Canvas courses: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_canvas_assignments(request):
+    """
+    Get Canvas assignments for upcoming tasks
+    """
+    try:
+        # Get Canvas configuration from settings
+        canvas_token = getattr(settings, 'CANVAS_API_TOKEN', None)
+        canvas_base_url = getattr(settings, 'CANVAS_BASE_URL', 'https://canvas.instructure.com')
+        
+        if not canvas_token:
+            return Response(
+                {'error': 'Canvas API token not configured'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Import Canvas functions lazily
+        from features import get_canvas_integrator
+        CanvasIntegrator = get_canvas_integrator()
+        
+        # Initialize Canvas integrator
+        canvas = CanvasIntegrator(canvas_token, canvas_base_url)
+        
+        # Get days ahead parameter (default 14 days)
+        days_ahead = int(request.GET.get('days_ahead', 14))
+        
+        # Fetch upcoming assignments
+        assignments = canvas.fetch_upcoming_assignments(days_ahead=days_ahead)
+        
+        return Response({
+            'success': True,
+            'assignments': assignments,
+            'total_assignments': len(assignments),
+            'days_ahead': days_ahead
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error fetching Canvas assignments: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
