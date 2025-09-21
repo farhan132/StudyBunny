@@ -1,9 +1,22 @@
-﻿import React from 'react';
+﻿import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import './shared.css';
 import './Notifications.css';
+import apiService from '../services/api';
 
 function Notifications() {
+  useEffect(() => {
+    // Fetch 14-day schedule to trigger simulation
+    const fetch14DaySchedule = async () => {
+      try {
+        await apiService.get14DaySchedule();
+      } catch (error) {
+        console.error('Error fetching 14-day schedule:', error);
+      }
+    };
+    
+    fetch14DaySchedule();
+  }, []);
   return (
     <div className="page">
       <h1> Notifications</h1>

@@ -257,6 +257,135 @@ def get_task_by_name(user, task_name):
         }
 
 
+def can_complete_tasks_with_intensity_simulation(user, intensity_value, start_date=None, end_date=None):
+    """
+    Simulate the 14-day schedule to determine if all tasks can be completed.
+    This function uses the same logic as the actual 14-day schedule.
+    """
+    try:
+        # Set default dates if not provided
+        if start_date is None:
+            start_date = timezone.now().date()
+        if end_date is None:
+            end_date = start_date + timedelta(days=14)
+        
+        # Get all incomplete tasks for the user
+        tasks = Task.objects.filter(
+            user=user,
+            is_completed=False
+        ).order_by('due_date', 'due_time', '-delta')
+        
+        if not tasks.exists():
+            return {
+                'success': True,
+                'can_complete': True,
+                'total_tasks': 0,
+                'completed_tasks': 0,
+                'remaining_tasks': 0,
+                'total_time_needed': '0:00:00',
+                'total_time_available': '0:00:00',
+                'schedule': [],
+                'intensity_used': intensity_value,
+                'efficiency': 1.0,
+                'message': 'No tasks to complete'
+            }
+        
+        # Calculate total time needed for all tasks
+        total_time_needed = timedelta()
+        for task in tasks:
+            completion_percentage = task.completed_so_far / 100.0
+            remaining_percentage = 1.0 - completion_percentage
+            remaining_time = task.T_n * remaining_percentage
+            total_time_needed += remaining_time
+        
+        # Simulate the 14-day schedule
+        task_progress = {}
+        for task in tasks:
+            task_progress[task.id] = task.completed_so_far
+        
+        total_time_available = timedelta()
+        completed_tasks_count = 0
+        
+        # Process each day for 14 days
+        for day_index in range(14):
+            current_date = start_date + timedelta(days=day_index)
+            
+            # Get free time for this day
+            day_free_time = TimeCalculation.get_free_d(current_date, intensity_value=intensity_value)
+            total_time_available += day_free_time
+            
+            # Get tasks that should be worked on this date (due within next 7 days)
+            tasks_due_today = tasks.filter(
+                due_date__gt=current_date,
+                due_date__lte=current_date + timedelta(days=7)
+            )
+            
+            if not tasks_due_today.exists():
+                continue
+            
+            # Filter out tasks that are already complete
+            incomplete_tasks = []
+            for task in tasks_due_today:
+                if task_progress.get(task.id, 0.0) < 100.0:
+                    incomplete_tasks.append(task)
+            
+            if not incomplete_tasks:
+                continue
+            
+            # Simulate daily scheduling
+            remaining_time = day_free_time
+            for task in incomplete_tasks:
+                completion_percentage = task_progress.get(task.id, 0.0) / 100.0
+                remaining_percentage = 1.0 - completion_percentage
+                time_needed = task.T_n * remaining_percentage
+                
+                if time_needed <= remaining_time:
+                    # Complete the task
+                    task_progress[task.id] = 100.0
+                    completed_tasks_count += 1
+                    remaining_time -= time_needed
+                else:
+                    # Partial completion
+                    if remaining_time > timedelta(minutes=30):
+                        partial_completion = remaining_time / task.T_n * 100
+                        task_progress[task.id] = min(100.0, task_progress.get(task.id, 0.0) + partial_completion)
+                        remaining_time = timedelta()
+                        break
+        
+        # Count completed tasks
+        total_tasks = len(tasks)
+        completed_tasks = sum(1 for task in tasks if task_progress.get(task.id, 0.0) >= 100.0)
+        remaining_tasks = total_tasks - completed_tasks
+        
+        # Calculate efficiency
+        efficiency = 0.0
+        if total_time_available.total_seconds() > 0:
+            efficiency = min(1.0, total_time_needed.total_seconds() / total_time_available.total_seconds())
+        
+        # Determine if all tasks can be completed
+        can_complete = remaining_tasks == 0
+        
+        return {
+            'success': True,
+            'can_complete': can_complete,
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'remaining_tasks': remaining_tasks,
+            'total_time_needed': str(total_time_needed),
+            'total_time_available': str(total_time_available),
+            'schedule': [],  # Not needed for simulation
+            'intensity_used': intensity_value,
+            'efficiency': efficiency,
+            'message': f"Simulation: {completed_tasks}/{total_tasks} tasks can be completed with intensity {intensity_value:.3f}"
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': f'An error occurred during simulation: {str(e)}'
+        }
+
+
 def can_complete_tasks_with_intensity(user, intensity_value, start_date=None, end_date=None):
     """
     Determine if all remaining tasks can be completed within the given time frame
@@ -464,7 +593,7 @@ def can_complete_tasks_with_intensity(user, intensity_value, start_date=None, en
 
 def find_minimum_intensity_for_completion(user, start_date=None, end_date=None, precision=0.01, max_iterations=50):
     """
-    Find the minimum intensity value needed to complete all tasks using binary search.
+    Find the minimum intensity value needed to complete all tasks using get_optimal_daily_plan.
     
     This function uses binary search to efficiently find the lowest intensity value
     (between 0.0 and 1.0) that allows all tasks to be completed within the given time frame.
@@ -517,23 +646,17 @@ def find_minimum_intensity_for_completion(user, start_date=None, end_date=None, 
         iterations_used = 0
         
         # First, check if completion is possible at all (with intensity 1.0)
-        result_max = can_complete_tasks_with_intensity(user, 1.0, start_date, end_date)
-        if not result_max['success']:
-            return {
-                'success': False,
-                'error': f"Error checking maximum intensity: {result_max.get('error', 'Unknown error')}"
-            }
-        
-        if not result_max['can_complete']:
+        can_complete_with_max = _test_completion_across_period(user, 1.0, start_date, end_date)
+        if not can_complete_with_max:
             return {
                 'success': True,
                 'minimum_intensity': -1.0,
                 'can_complete_all': False,
-                'total_tasks': result_max['total_tasks'],
+                'total_tasks': len(tasks),
                 'iterations_used': 0,
                 'precision_achieved': 0.0,
                 'search_range': {'low': 0.0, 'high': 1.0},
-                'schedule_analysis': result_max,
+                'schedule_analysis': None,
                 'message': '❌ Impossible to complete all tasks even with maximum intensity (1.0)'
             }
         
@@ -543,15 +666,9 @@ def find_minimum_intensity_for_completion(user, start_date=None, end_date=None, 
             mid_intensity = (low_intensity + high_intensity) / 2.0
             
             # Test if we can complete all tasks with this intensity
-            result = can_complete_tasks_with_intensity(user, mid_intensity, start_date, end_date)
+            can_complete = _test_completion_across_period(user, mid_intensity, start_date, end_date)
             
-            if not result['success']:
-                return {
-                    'success': False,
-                    'error': f"Error during binary search at intensity {mid_intensity}: {result.get('error', 'Unknown error')}"
-                }
-            
-            if result['can_complete']:
+            if can_complete:
                 # We can complete all tasks with this intensity
                 minimum_intensity = mid_intensity
                 high_intensity = mid_intensity  # Try to find a lower intensity
@@ -561,15 +678,8 @@ def find_minimum_intensity_for_completion(user, start_date=None, end_date=None, 
         
         # Final verification with the found minimum intensity
         if minimum_intensity >= 0:
-            final_result = can_complete_tasks_with_intensity(user, minimum_intensity, start_date, end_date)
-            if not final_result['success']:
-                return {
-                    'success': False,
-                    'error': f"Error in final verification: {final_result.get('error', 'Unknown error')}"
-                }
-            
-            can_complete_all = final_result['can_complete']
-            schedule_analysis = final_result
+            can_complete_all = _test_completion_across_period(user, minimum_intensity, start_date, end_date)
+            schedule_analysis = None  # We don't need detailed analysis for binary search
         else:
             # This shouldn't happen if we found that intensity 1.0 works
             can_complete_all = False
@@ -604,6 +714,86 @@ def find_minimum_intensity_for_completion(user, start_date=None, end_date=None, 
             'success': False,
             'error': f'An error occurred during binary search: {str(e)}'
         }
+
+
+def _test_completion_across_period(user, intensity, start_date, end_date):
+    """
+    Test if all tasks can be completed across the given period using the specified intensity.
+    Uses get_optimal_daily_plan to simulate daily scheduling.
+    """
+    try:
+        # Get all incomplete tasks
+        tasks = Task.objects.filter(user=user, is_completed=False)
+        if not tasks.exists():
+            return True
+        
+        # Track task progress across the period
+        task_progress = {}
+        for task in tasks:
+            task_progress[task.id] = task.completed_so_far
+        
+        # Test each day in the period
+        current_date = start_date
+        while current_date <= end_date:
+            # Get tasks that should be worked on this date (due on or after current date, within next 7 days)
+            tasks_due_today = tasks.filter(
+                due_date__gte=current_date,
+                due_date__lte=current_date + timedelta(days=7)
+            )
+            
+            if tasks_due_today.exists():
+                # Filter out tasks that are already complete
+                incomplete_tasks = []
+                for task in tasks_due_today:
+                    if task_progress.get(task.id, 0.0) < 100.0:
+                        incomplete_tasks.append(task)
+                
+                if incomplete_tasks:
+                    # Test if we can schedule these tasks on this day
+                    # We'll simulate by checking if there's enough free time
+                    try:
+                        # Use get_free_today for today (realistic remaining time) and get_free_d for future days
+                        # Convert to user's timezone for accurate date comparison
+                        import pytz
+                        user_tz = pytz.timezone('America/Chicago')  # CDT timezone
+                        user_now = timezone.now().astimezone(user_tz)
+                        user_today = user_now.date()
+                        
+                        if current_date == user_today:
+                            day_free_time = TimeCalculation.get_free_today(intensity_value=intensity)
+                        else:
+                            day_free_time = TimeCalculation.get_free_d(current_date, intensity_value=intensity)
+                        
+                        # Simulate task scheduling
+                        remaining_time = day_free_time
+                        for task in incomplete_tasks:
+                            completion_percentage = task_progress.get(task.id, 0.0) / 100.0
+                            remaining_percentage = 1.0 - completion_percentage
+                            time_needed = task.T_n * remaining_percentage
+                            
+                            if time_needed <= remaining_time:
+                                # Complete the task
+                                task_progress[task.id] = 100.0
+                                remaining_time -= time_needed
+                            else:
+                                # Partial completion
+                                if remaining_time > timedelta(minutes=30):
+                                    partial_completion = remaining_time / task.T_n * 100
+                                    task_progress[task.id] = min(100.0, task_progress.get(task.id, 0.0) + partial_completion)
+                                    remaining_time = timedelta()
+                                    break
+                    except Exception:
+                        # If we can't calculate free time, assume we can't complete
+                        return False
+            
+            current_date += timedelta(days=1)
+        
+        # Check if all tasks are completed
+        all_completed = all(task_progress.get(task.id, 0.0) >= 100.0 for task in tasks)
+        return all_completed
+        
+    except Exception:
+        return False
 
 
 def get_optimal_daily_plan(user, target_date=None, max_intensity=0.9):
@@ -800,6 +990,171 @@ def _find_tasks_to_remove(user, max_intensity, target_date):
         return []
 
 
+def generate_daily_plan_for_tasks_with_progress(user, target_date, intensity, tasks_to_schedule, task_progress, min_tasks=2):
+    """
+    Generate daily plan with specific intensity for specific tasks, tracking progress across days.
+    """
+    try:
+        # Get free time for the day with the given intensity
+        from apps.core.models import TimeCalculation
+        
+        # Use get_free_d for all dates to ensure consistent behavior
+        free_time = TimeCalculation.get_free_d(target_date, intensity_value=intensity)
+        
+        if not tasks_to_schedule:
+            return []
+        
+        daily_plan = []
+        remaining_time = free_time
+        tasks_scheduled = 0
+        
+        for task in tasks_to_schedule:
+            # Calculate remaining time needed for this task based on current progress
+            completion_percentage = task_progress.get(task.id, 0.0) / 100.0
+            remaining_percentage = 1.0 - completion_percentage
+            time_needed = task.T_n * remaining_percentage
+            
+            # Check if we can fit this task in today's free time
+            if time_needed <= remaining_time:
+                # Allocate full time needed to complete this task
+                new_progress = min(100.0, task_progress.get(task.id, 0.0) + (time_needed / task.T_n * 100))
+                
+                daily_plan.append({
+                    'task_id': task.id,
+                    'task_title': task.title,
+                    'task_description': task.description,
+                    'priority': task.delta,
+                    'due_date': task.due_date,
+                    'due_time': task.due_time,
+                    'completion_before': task_progress.get(task.id, 0.0),
+                    'time_allotted': time_needed,
+                    'time_needed_total': str(task.T_n),
+                    'completion_after': new_progress,
+                    'start_time': timezone.now().time(),
+                })
+                
+                remaining_time -= time_needed
+                tasks_scheduled += 1
+                
+                # Update task progress for next day
+                task_progress[task.id] = new_progress
+                
+                # If we have enough tasks and time is running low, we can stop
+                if tasks_scheduled >= min_tasks and remaining_time < timedelta(minutes=30):
+                    break
+            else:
+                # Check if we can partially complete this task
+                if remaining_time > timedelta(minutes=30) and tasks_scheduled < min_tasks:
+                    # Allocate remaining time to this task
+                    partial_completion = remaining_time / task.T_n * 100
+                    new_progress = min(100.0, task_progress.get(task.id, 0.0) + partial_completion)
+                    
+                    daily_plan.append({
+                        'task_id': task.id,
+                        'task_title': task.title,
+                        'task_description': task.description,
+                        'priority': task.delta,
+                        'due_date': task.due_date,
+                        'due_time': task.due_time,
+                        'completion_before': task_progress.get(task.id, 0.0),
+                        'time_allotted': remaining_time,
+                        'time_needed_total': str(task.T_n),
+                        'completion_after': new_progress,
+                        'start_time': timezone.now().time(),
+                        'partial_completion': True,
+                    })
+                    
+                    # Update task progress for next day
+                    task_progress[task.id] = new_progress
+                    
+                    remaining_time = timedelta()
+                    tasks_scheduled += 1
+                    break
+        
+        return daily_plan
+        
+    except Exception as e:
+        print(f"Error generating daily plan: {e}")
+        return []
+
+
+def generate_daily_plan_for_tasks(user, target_date, intensity, tasks_to_schedule, min_tasks=2):
+    """
+    Generate daily plan with specific intensity for specific tasks.
+    """
+    try:
+        # Get free time for the day with the given intensity
+        from apps.core.models import TimeCalculation
+        
+        # Use get_free_d for all dates to ensure consistent behavior
+        free_time = TimeCalculation.get_free_d(target_date, intensity_value=intensity)
+        
+        if not tasks_to_schedule:
+            return []
+        
+        daily_plan = []
+        remaining_time = free_time
+        tasks_scheduled = 0
+        
+        for task in tasks_to_schedule:
+            # Calculate remaining time needed for this task
+            completion_percentage = task.completed_so_far / 100.0
+            remaining_percentage = 1.0 - completion_percentage
+            time_needed = task.T_n * remaining_percentage
+            
+            # Check if we can fit this task in today's free time
+            if time_needed <= remaining_time:
+                # Allocate full time needed to complete this task
+                daily_plan.append({
+                    'task_id': task.id,
+                    'task_title': task.title,
+                    'task_description': task.description,
+                    'priority': task.delta,
+                    'due_date': task.due_date,
+                    'due_time': task.due_time,
+                    'completion_before': task.completed_so_far,
+                    'time_allotted': time_needed,
+                    'time_needed_total': str(task.T_n),
+                    'completion_after': min(100.0, task.completed_so_far + (time_needed / task.T_n * 100)),
+                    'start_time': timezone.now().time(),  # Could be improved with actual scheduling
+                })
+                
+                remaining_time -= time_needed
+                tasks_scheduled += 1
+                
+                # If we have enough tasks and time is running low, we can stop
+                if tasks_scheduled >= min_tasks and remaining_time < timedelta(minutes=30):
+                    break
+            else:
+                # Check if we can partially complete this task
+                if remaining_time > timedelta(minutes=30) and tasks_scheduled < min_tasks:
+                    # Allocate remaining time to this task
+                    daily_plan.append({
+                        'task_id': task.id,
+                        'task_title': task.title,
+                        'task_description': task.description,
+                        'priority': task.delta,
+                        'due_date': task.due_date,
+                        'due_time': task.due_time,
+                        'completion_before': task.completed_so_far,
+                        'time_allotted': remaining_time,
+                        'time_needed_total': str(task.T_n),
+                        'completion_after': min(100.0, task.completed_so_far + (remaining_time / task.T_n * 100)),
+                        'start_time': timezone.now().time(),
+                        'partial_completion': True,
+                    })
+                    
+                    remaining_time = timedelta()
+                    tasks_scheduled += 1
+                    break
+        
+        return daily_plan
+        
+    except Exception as e:
+        print(f"Error generating daily plan: {e}")
+        return []
+
+
 def generate_daily_plan(user, target_date, intensity, min_tasks=2):
     """
     Generate daily plan with specific intensity, preferring plans with at least min_tasks.
@@ -808,10 +1163,8 @@ def generate_daily_plan(user, target_date, intensity, min_tasks=2):
         # Get free time for the day with the given intensity
         from apps.core.models import TimeCalculation
         
-        if target_date == timezone.now().date():
-            free_time = TimeCalculation.get_free_today(intensity_value=intensity)
-        else:
-            free_time = TimeCalculation.get_free_d(target_date, intensity_value=intensity)
+        # Use get_free_d for all dates to ensure consistent behavior
+        free_time = TimeCalculation.get_free_d(target_date, intensity_value=intensity)
         
         # Get incomplete tasks sorted by priority and due date
         tasks = Task.objects.filter(
@@ -834,7 +1187,7 @@ def generate_daily_plan(user, target_date, intensity, min_tasks=2):
             
             # Check if we can fit this task in today's free time
             if time_needed <= remaining_time:
-                # Allocate time for this task
+                # Allocate full time needed to complete this task
                 daily_plan.append({
                     'task_id': task.id,
                     'task_title': task.title,
@@ -887,7 +1240,7 @@ def generate_daily_plan(user, target_date, intensity, min_tasks=2):
 
 def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
     """
-    Generate a 14-day task schedule using greedy daily routine formation.
+    Generate a 14-day task schedule using get_optimal_daily_plan for each day.
     
     Returns a list where:
     - Index 0: Tasks for remaining time today
@@ -913,9 +1266,12 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
             - message (str): Human-readable result message
     """
     try:
-        # Set default start date
+        # Set default start date to user's timezone
         if start_date is None:
-            start_date = timezone.now().date()
+            import pytz
+            user_tz = pytz.timezone('America/Chicago')  # CDT timezone
+            user_now = timezone.now().astimezone(user_tz)
+            start_date = user_now.date()
         
         end_date = start_date + timedelta(days=13)  # 14 days total (0-13)
         
@@ -951,75 +1307,155 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
         total_tasks_scheduled = 0
         intensity_values = []
         
-        # Process each day
+        # Use binary search to find minimum intensity needed for all tasks
+        print(f"🔍 Finding minimum intensity for all tasks...")
+        # Find the latest due date among all tasks
+        latest_due_date = max(task.due_date for task in all_tasks)
+        print(f"Latest due date: {latest_due_date}")
+        
+        min_intensity_result = find_minimum_intensity_for_completion(
+            user=user,
+            start_date=start_date,
+            end_date=latest_due_date  # Use actual task deadlines, not fixed 14 days
+        )
+        
+        if not min_intensity_result['success']:
+            print(f"❌ Error finding minimum intensity: {min_intensity_result.get('error', 'Unknown')}")
+            return {
+                'success': False,
+                'error': f"Error finding minimum intensity: {min_intensity_result.get('error', 'Unknown')}"
+            }
+        
+        minimum_intensity = min_intensity_result['minimum_intensity']
+        print(f"✅ Minimum intensity found: {minimum_intensity:.3f}")
+        
+        # Track task progress across the 14-day schedule
+        task_progress = {}
+        for task in all_tasks:
+            task_progress[task.id] = task.completed_so_far
+        
+        # Process each day using the exact same algorithm as binary search
         for day_index in range(14):
             current_date = start_date + timedelta(days=day_index)
             print(f"📅 Processing day {day_index + 1}: {current_date}")
             
-            # Get free time for this day with optimal intensity
-            from apps.core.models import TimeCalculation
+            # For 14-day schedule, we want to distribute tasks across all 14 days
+            # Get all incomplete tasks that are due on or after this date
+            incomplete_tasks = []
+            for task in all_tasks:
+                if task_progress.get(task.id, 0.0) < 100.0 and task.due_date >= current_date:
+                    incomplete_tasks.append(task)
             
-            # Get the global intensity as minimum
-            from apps.core.intensity import get_intensity
-            min_intensity = get_intensity()
+            print(f"   🔍 Incomplete tasks: {len(incomplete_tasks)}")
+            for task in incomplete_tasks:
+                print(f"      • {task.title} (due: {task.due_date}, progress: {task_progress.get(task.id, 0.0):.1f}%)")
             
-            # Try different intensities to find the best one for this day
-            best_intensity = min_intensity
-            best_plan = []
+            if not incomplete_tasks:
+                print(f"   ⚠️ No incomplete tasks to schedule for {current_date}")
+                intensity_values.append(0.0)
+                continue
             
-            # Create intensity range from global intensity to max_intensity
-            intensity_steps = 10
-            intensity_range = []
-            for i in range(intensity_steps + 1):
-                test_intensity = min_intensity + (max_intensity - min_intensity) * i / intensity_steps
-                intensity_range.append(round(test_intensity, 2))
-            
-            for test_intensity in intensity_range:
-                if test_intensity > max_intensity:
-                    break
+            try:
+                # Use get_free_today for today (realistic remaining time) and get_free_d for future days
+                # Convert to user's timezone for accurate date comparison
+                import pytz
+                user_tz = pytz.timezone('America/Chicago')  # CDT timezone
+                user_now = timezone.now().astimezone(user_tz)
+                user_today = user_now.date()
                 
-                # Generate daily plan for this intensity
-                daily_plan = generate_daily_plan(
-                    user, current_date, test_intensity, min_tasks=1
-                )
+                if current_date == user_today:
+                    day_free_time = TimeCalculation.get_free_today(intensity_value=minimum_intensity)
+                else:
+                    day_free_time = TimeCalculation.get_free_d(current_date, intensity_value=minimum_intensity)
                 
-                if daily_plan and len(daily_plan) > len(best_plan):
-                    best_plan = daily_plan
-                    best_intensity = test_intensity
-            
-            # If we found a plan, add it to the schedule
-            if best_plan:
-                schedule[day_index] = best_plan
-                total_tasks_scheduled += len(best_plan)
-                intensity_values.append(best_intensity)
+                # Simulate task scheduling using the same logic as binary search
+                remaining_time = day_free_time
+                daily_plan = []
                 
-                # Mark scheduled tasks as completed for future days
-                scheduled_task_ids = [task['task_id'] for task in best_plan]
-                Task.objects.filter(id__in=scheduled_task_ids).update(is_completed=True)
+                for task in incomplete_tasks:
+                    completion_percentage = task_progress.get(task.id, 0.0) / 100.0
+                    remaining_percentage = 1.0 - completion_percentage
+                    time_needed = task.T_n * remaining_percentage
+                    
+                    if time_needed <= remaining_time:
+                        # Complete the task
+                        new_progress = 100.0
+                        daily_plan.append({
+                            'task_id': task.id,
+                            'task_title': task.title,
+                            'task_description': task.description,
+                            'priority': task.delta,
+                            'due_date': task.due_date,
+                            'due_time': task.due_time,
+                            'completion_before': task_progress.get(task.id, 0.0),
+                            'time_allotted': time_needed,
+                            'time_needed_total': str(task.T_n),
+                            'completion_after': new_progress,
+                            'start_time': timezone.now().time(),
+                        })
+                        
+                        remaining_time -= time_needed
+                        task_progress[task.id] = new_progress
+                        
+                    else:
+                        # Partial completion
+                        if remaining_time > timedelta(minutes=30):
+                            partial_completion = remaining_time / task.T_n * 100
+                            new_progress = min(100.0, task_progress.get(task.id, 0.0) + partial_completion)
+                            
+                            daily_plan.append({
+                                'task_id': task.id,
+                                'task_title': task.title,
+                                'task_description': task.description,
+                                'priority': task.delta,
+                                'due_date': task.due_date,
+                                'due_time': task.due_time,
+                                'completion_before': task_progress.get(task.id, 0.0),
+                                'time_allotted': remaining_time,
+                                'time_needed_total': str(task.T_n),
+                                'completion_after': new_progress,
+                                'start_time': timezone.now().time(),
+                                'partial_completion': True,
+                            })
+                            
+                            task_progress[task.id] = new_progress
+                            remaining_time = timedelta()
+                            break
                 
-                print(f"   ✅ Scheduled {len(best_plan)} tasks with intensity {best_intensity:.2f}")
-                
-                # Show what was scheduled
-                for task in best_plan:
-                    print(f"      • {task['task_title']} ({task['time_allotted']})")
-            else:
-                print(f"   ⚠️ No tasks scheduled for {current_date}")
+                if daily_plan:
+                    schedule[day_index] = daily_plan
+                    total_tasks_scheduled += len(daily_plan)
+                    intensity_values.append(minimum_intensity)
+                    
+                    print(f"   ✅ Scheduled {len(daily_plan)} tasks with intensity {minimum_intensity:.3f}")
+                    
+                    # Show what was scheduled
+                    for task in daily_plan:
+                        print(f"      • {task['task_title']} ({task['time_allotted']}) - Progress: {task['completion_after']:.1f}%")
+                    
+                else:
+                    print(f"   ⚠️ No tasks scheduled for {current_date}")
+                    intensity_values.append(0.0)
+                    
+            except Exception as e:
+                print(f"   ❌ Error processing day {current_date}: {e}")
                 intensity_values.append(0.0)
         
-        # Calculate completion analysis BEFORE restoring tasks
-        # We need to count how many tasks were actually scheduled
+        
+        # No need to restore task progress since we're not modifying task completion status
+        
+        # Calculate completion analysis
         scheduled_task_ids = set()
         for day_schedule in schedule:
             for task in day_schedule:
                 scheduled_task_ids.add(task['task_id'])
-        
+
         total_tasks = len(tasks_list)
-        completed_tasks = len(scheduled_task_ids)
-        remaining_tasks = total_tasks - completed_tasks
-        completion_rate = completed_tasks / total_tasks if total_tasks > 0 else 1.0
+        scheduled_tasks = len(scheduled_task_ids)
+        remaining_tasks = total_tasks - scheduled_tasks
+        completion_rate = scheduled_tasks / total_tasks if total_tasks > 0 else 1.0
         
-        # Restore all tasks to incomplete status
-        Task.objects.filter(user=user).update(is_completed=False)
+        # Tasks remain in their original completion status
         
         # Calculate average intensity
         avg_intensity = sum(intensity_values) / len(intensity_values) if intensity_values else 0.0
@@ -1027,7 +1463,7 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
         # Generate summary
         print(f"\n📊 14-DAY SCHEDULE SUMMARY:")
         print(f"   Total tasks scheduled: {total_tasks_scheduled}")
-        print(f"   Tasks completed: {completed_tasks}/{total_tasks} ({completion_rate:.1%})")
+        print(f"   Tasks scheduled: {scheduled_tasks}/{total_tasks} ({completion_rate:.1%})")
         print(f"   Average intensity: {avg_intensity:.3f}")
         print(f"   Days with tasks: {sum(1 for day in schedule if day)}/14")
         
@@ -1039,18 +1475,16 @@ def get_14_day_schedule(user, start_date=None, max_intensity=0.9):
             'end_date': end_date,
             'total_tasks_scheduled': total_tasks_scheduled,
             'intensity_used': avg_intensity,
-            'completion_analysis': {
-                'total_tasks': total_tasks,
-                'completed_tasks': completed_tasks,
-                'remaining_tasks': remaining_tasks,
-                'completion_rate': completion_rate
-            },
+                    'completion_analysis': {
+                        'total_tasks': total_tasks,
+                        'completed_tasks': scheduled_tasks,
+                        'remaining_tasks': remaining_tasks,
+                        'completion_rate': completion_rate
+                    },
             'message': f"✅ 14-day schedule generated with {total_tasks_scheduled} tasks scheduled across {sum(1 for day in schedule if day)} days"
         }
         
     except Exception as e:
-        # Restore all tasks to incomplete status in case of error
-        Task.objects.filter(user=user).update(is_completed=False)
         return {
             'success': False,
             'error': f'An error occurred while generating 14-day schedule: {str(e)}'
