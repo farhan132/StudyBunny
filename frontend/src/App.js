@@ -1,6 +1,7 @@
-﻿import React, { useEffect } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navigation from './components/Navigation';
+import LoadingScreen from './components/LoadingScreen';
 import Home from './pages/Home';
 import Calendar from './pages/Calendar';
 import Statistics from './pages/Statistics';
@@ -9,6 +10,8 @@ import apiService from './services/api';
 import './App.css';
 
 function App() {
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
     // Fetch 14-day schedule on app load to trigger simulation
     const fetch14DaySchedule = async () => {
@@ -21,6 +24,15 @@ function App() {
     
     fetch14DaySchedule();
   }, []);
+
+  const handleLoadingComplete = () => {
+    setIsLoading(false);
+  };
+
+  if (isLoading) {
+    return <LoadingScreen onComplete={handleLoadingComplete} />;
+  }
+
   return (
     <Router>
       <div className="App">

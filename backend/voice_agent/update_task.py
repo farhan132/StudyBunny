@@ -1,4 +1,12 @@
 # import voice_agent_gemini as va
+
+# Import aifc compatibility module before importing speech_recognition
+try:
+    import aifc
+except ImportError:
+    # Python 3.13+ compatibility - aifc module was removed
+    from . import aifc_compat
+
 import speech_recognition as sr
 import os
 import google.generativeai as genai

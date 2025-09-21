@@ -1,13 +1,14 @@
 ﻿.navigation {
-  background: #4c7cad;
+  background: white;
   padding: 25px 0;
   margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding-left: 20px;
   padding-right: 20px;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
 }
 
 .nav-brand {
@@ -20,13 +21,31 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
+  background: transparent;
+  padding: 0;
 }
 
 .nav-title {
-  color: white;
+  background: linear-gradient(135deg, #1a365d 0%, #2c5aa0 25%, #3182ce 50%, #4299e1 75%, #1e3a8a 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   font-size: 1.5em;
-  font-weight: 600;
+  font-weight: 700;
   text-decoration: none;
+  animation: gradientShift 4s ease-in-out infinite;
+  text-shadow: 0 1px 2px rgba(26, 54, 93, 0.1);
+  letter-spacing: 0.5px;
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 .nav-links {
@@ -38,22 +57,28 @@
 }
 
 .nav-links a {
-  color: white;
+  color: #1a365d;
   text-decoration: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  transition: background-color 0.3s ease;
+  padding: 12px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
 }
 
 .nav-links a:hover {
-  background-color: #495057;
-  color: white;
+  background-color: rgba(26, 54, 93, 0.1);
+  transform: translateY(-2px);
 }
 
 .nav-links a.active {
-  background-color: #007bff;
-  color: white;
+  background-color: rgba(26, 54, 93, 0.15);
+  color: #1a365d;
+  transform: translateY(-1px);
 }
 
 @media (max-width: 768px) {
@@ -87,10 +112,12 @@
   
   .nav-links a {
     text-align: center;
-    padding: 8px 15px;
+    padding: 8px;
     font-size: 0.9em;
     flex: 1;
-    min-width: 80px;
+    min-width: 60px;
+    width: 60px;
+    height: 60px;
   }
 }
 
@@ -117,8 +144,10 @@
   }
   
   .nav-links a {
-    padding: 6px 10px;
+    padding: 6px;
     font-size: 0.8em;
-    min-width: 70px;
+    min-width: 50px;
+    width: 50px;
+    height: 50px;
   }
 }

@@ -622,6 +622,7 @@ function Home() {
     }
   }, [completedAssignments]);
 
+
   const handleMarkComplete = useCallback(async (assignmentId) => {
     console.log('handleMarkComplete called:', { assignmentId });
     
@@ -1162,13 +1163,29 @@ function Home() {
         <div className="intensity-section">
           <div className="intensity-card-small">
             <div className="intensity-content">
-              <div className="intensity-slider-container-small">
+              <div className="intensity-slider-container-small" style={{'--slider-value': dashboardStats.userIntensity}}>
                 <input
                   type="range"
                   min="0"
                   max="100"
                   value={dashboardStats.userIntensity}
                   onChange={(e) => handleIntensityChange(parseInt(e.target.value))}
+                  onMouseDown={() => {
+                    const container = document.querySelector('.intensity-slider-container-small');
+                    container?.classList.add('slider-moving');
+                  }}
+                  onMouseUp={() => {
+                    const container = document.querySelector('.intensity-slider-container-small');
+                    container?.classList.remove('slider-moving');
+                  }}
+                  onTouchStart={() => {
+                    const container = document.querySelector('.intensity-slider-container-small');
+                    container?.classList.add('slider-moving');
+                  }}
+                  onTouchEnd={() => {
+                    const container = document.querySelector('.intensity-slider-container-small');
+                    container?.classList.remove('slider-moving');
+                  }}
                   className="intensity-slider-small"
                   style={{
                     backgroundImage: `linear-gradient(to right, ${getIntensityBarColor(dashboardStats.userIntensity)} ${dashboardStats.userIntensity}%, #e2e8f0 ${dashboardStats.userIntensity}%)`
