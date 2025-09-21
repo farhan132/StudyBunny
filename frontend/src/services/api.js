@@ -302,6 +302,50 @@ class ApiService {
       throw error;
     }
   }
+
+  async getCanvasConfig() {
+    try {
+      const response = await fetch('/api/study/canvas/config/', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching Canvas config:', error);
+      throw error;
+    }
+  }
+
+  async setCanvasToken(token, baseUrl = 'https://canvas.instructure.com') {
+    try {
+      const response = await fetch('/api/study/canvas/set-token/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: token,
+          base_url: baseUrl
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error setting Canvas token:', error);
+      throw error;
+    }
+  }
 }
 
 // Create and export a singleton instance

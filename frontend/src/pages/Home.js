@@ -22,6 +22,14 @@ function Home() {
     howAmIDoingScore: 0
   });
 
+  const [showCanvasConfig, setShowCanvasConfig] = useState(false);
+  const [showCanvasSyncConfirm, setShowCanvasSyncConfirm] = useState(false);
+  const [canvasConfig, setCanvasConfig] = useState({
+    token: '',
+    baseUrl: 'https://canvas.instructure.com',
+    configured: false
+  });
+
   const [newAssignment, setNewAssignment] = useState({
     name: '',
     description: '',
@@ -38,6 +46,7 @@ function Home() {
     fetchAssignments();
     fetchDashboardStats();
     fetch14DaySchedule();
+    checkCanvasConfig();
     
     // Cleanup function to clear timeouts when component unmounts
     return () => {
@@ -350,6 +359,56 @@ function Home() {
     }
   };
 
+  const checkCanvasConfig = async () => {
+    try {
+      const response = await apiService.getCanvasConfig();
+      setCanvasConfig(prev => ({
+        ...prev,
+        configured: response.configured,
+        baseUrl: response.base_url || 'https://canvas.instructure.com'
+      }));
+    } catch (error) {
+      console.error('Error checking Canvas config:', error);
+    }
+  };
+
+  const handleCanvasConfig = async () => {
+    if (canvasConfig.configured) {
+      // If already configured, show sync confirmation modal
+      setShowCanvasSyncConfirm(true);
+    } else {
+      // Show configuration modal
+      setShowCanvasConfig(true);
+    }
+  };
+
+  const handleCanvasTokenSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      console.log('🔄 Setting Canvas token...');
+      const response = await apiService.setCanvasToken(canvasConfig.token, canvasConfig.baseUrl);
+      
+      if (response.success) {
+        console.log('✅ Canvas token configured:', response);
+        setCanvasConfig(prev => ({
+          ...prev,
+          configured: true
+        }));
+        setShowCanvasConfig(false);
+        alert(`Canvas configured successfully! Found ${response.courses_found} courses.`);
+        
+        // Ask if user wants to sync now
+        setShowCanvasSyncConfirm(true);
+      } else {
+        console.error('❌ Canvas configuration failed:', response);
+        alert(`Canvas configuration failed: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('❌ Error configuring Canvas:', error);
+      alert(`Error configuring Canvas: ${error.message}`);
+    }
+  };
+
   const handleCanvasSync = async () => {
     try {
       console.log('🔄 Syncing Canvas tasks...');
@@ -371,6 +430,11 @@ function Home() {
       console.error('❌ Error syncing Canvas tasks:', error);
       alert(`Error syncing Canvas tasks: ${error.message}`);
     }
+  };
+
+  const handleCanvasSyncConfirm = async () => {
+    setShowCanvasSyncConfirm(false);
+    await handleCanvasSync();
   };
 
   // Get performance bar color based on score with gradient transitions
@@ -1124,8 +1188,8 @@ function Home() {
           <div className="assignment-actions-header">
             <button 
               className="canvas-sync-btn circular-btn"
-              onClick={handleCanvasSync}
-              title="Sync Canvas Assignments - Import tasks from Canvas LMS"
+              onClick={handleCanvasConfig}
+              title={canvasConfig.configured ? "Sync Canvas Assignments" : "Configure Canvas Integration"}
             >
               🎨
             </button>
@@ -1445,6 +1509,92 @@ function Home() {
           </div>
         )}
       </div>
+
+      {/* Canvas Configuration Modal */}
+      {showCanvasConfig && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Configure Canvas Integration</h3>
+              <button 
+                className="modal-close"
+                onClick={() => setShowCanvasConfig(false)}
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleCanvasTokenSubmit}>
+              <div className="form-group">
+                <label htmlFor="canvas-token">Canvas API Token:</label>
+                <input
+                  type="password"
+                  id="canvas-token"
+                  value={canvasConfig.token}
+                  onChange={(e) => setCanvasConfig(prev => ({ ...prev, token: e.target.value }))}
+                  placeholder="Enter your Canvas API token"
+                  required
+                />
+                <small>
+                  Get your token from Canvas → Account → Settings → Approved Integrations → New Access Token
+                </small>
+              </div>
+              <div className="form-group">
+                <label htmlFor="canvas-base-url">Canvas Base URL:</label>
+                <input
+                  type="url"
+                  id="canvas-base-url"
+                  value={canvasConfig.baseUrl}
+                  onChange={(e) => setCanvasConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
+                  placeholder="https://canvas.instructure.com"
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" onClick={() => setShowCanvasConfig(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Configure Canvas
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Canvas Sync Confirmation Modal */}
+      {showCanvasSyncConfirm && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Sync Canvas Assignments</h3>
+              <button 
+                className="modal-close"
+                onClick={() => setShowCanvasSyncConfirm(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ padding: '24px' }}>
+              <p>Canvas is already configured. Would you like to sync assignments now?</p>
+              <div className="modal-actions">
+                <button 
+                  type="button" 
+                  onClick={() => setShowCanvasSyncConfirm(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary"
+                  onClick={handleCanvasSyncConfirm}
+                >
+                  Sync Now
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

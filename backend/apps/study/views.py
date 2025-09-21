@@ -662,14 +662,14 @@ def sync_canvas_tasks(request):
             defaults={'email': 'demo@example.com'}
         )
         
-        # Get Canvas configuration from settings
-        canvas_token = getattr(settings, 'CANVAS_API_TOKEN', None)
-        canvas_base_url = getattr(settings, 'CANVAS_BASE_URL', 'https://canvas.instructure.com')
+        # Get Canvas configuration from session
+        canvas_token = request.session.get('canvas_token')
+        canvas_base_url = request.session.get('canvas_base_url', 'https://canvas.instructure.com')
         
         if not canvas_token:
             return Response(
-                {'error': 'Canvas API token not configured'}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {'error': 'Canvas API token not configured. Please configure Canvas integration first.'}, 
+                status=status.HTTP_400_BAD_REQUEST
             )
         
         # Import Canvas functions lazily
@@ -786,5 +786,76 @@ def get_canvas_assignments(request):
     except Exception as e:
         return Response(
             {'error': f'Error fetching Canvas assignments: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def set_canvas_token(request):
+    """
+    Set Canvas API token for the session
+    """
+    try:
+        token = request.data.get('token', '').strip()
+        base_url = request.data.get('base_url', 'https://canvas.instructure.com').strip()
+        
+        if not token:
+            return Response(
+                {'error': 'Canvas API token is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Store token in session (you could also store in database or cache)
+        request.session['canvas_token'] = token
+        request.session['canvas_base_url'] = base_url
+        
+        # Test the token by trying to fetch courses
+        from features import get_canvas_integrator
+        CanvasIntegrator = get_canvas_integrator()
+        
+        canvas = CanvasIntegrator(token, base_url)
+        courses = canvas.fetch_all_courses()
+        
+        return Response({
+            'success': True,
+            'message': f'Canvas token configured successfully. Found {len(courses)} courses.',
+            'courses_found': len(courses)
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error setting Canvas token: {str(e)}'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_canvas_config(request):
+    """
+    Get current Canvas configuration status
+    """
+    try:
+        token = request.session.get('canvas_token')
+        base_url = request.session.get('canvas_base_url', 'https://canvas.instructure.com')
+        
+        if not token:
+            return Response({
+                'success': False,
+                'configured': False,
+                'message': 'Canvas API token not configured'
+            })
+        
+        return Response({
+            'success': True,
+            'configured': True,
+            'base_url': base_url,
+            'token_preview': f"{token[:10]}..." if len(token) > 10 else token
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Error getting Canvas config: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

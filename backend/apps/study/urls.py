@@ -29,4 +29,6 @@ urlpatterns = [
     path('canvas/sync/', views.sync_canvas_tasks, name='sync-canvas-tasks'),
     path('canvas/courses/', views.get_canvas_courses, name='get-canvas-courses'),
     path('canvas/assignments/', views.get_canvas_assignments, name='get-canvas-assignments'),
+    path('canvas/config/', views.get_canvas_config, name='get-canvas-config'),
+    path('canvas/set-token/', views.set_canvas_token, name='set-canvas-token'),
 ]
