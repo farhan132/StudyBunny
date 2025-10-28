@@ -29,7 +29,7 @@ INSTALLED_APPS = [
     'apps.core',
     'apps.study',
     'apps.notifications',
-    # 'voice_agent',  # Disabled for AWS
+    'voice_agent',
     'features',
 ]
 

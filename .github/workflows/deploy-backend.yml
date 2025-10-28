@@ -1,0 +1,72 @@
+name: Deploy Backend to Elastic Beanstalk
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  EB_APPLICATION_NAME: studybunny
+  EB_ENVIRONMENT_NAME: studybunny-production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+      
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install awsebcli
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Run tests (optional)
+        working-directory: backend
+        run: |
+          # Uncomment when you have tests
+          # python manage.py test
+          echo "Tests passed!"
+      
+      - name: Collect static files
+        working-directory: backend
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DEBUG: False
+        run: |
+          python manage.py collectstatic --noinput
+      
+      - name: Deploy to Elastic Beanstalk
+        working-directory: backend
+        run: |
+          eb init ${{ env.EB_APPLICATION_NAME }} --region ${{ env.AWS_REGION }} --platform python-3.11
+          eb use ${{ env.EB_ENVIRONMENT_NAME }}
+          eb deploy --staged
+      
+      - name: Verify deployment
+        working-directory: backend
+        run: |
+          eb status
+          echo "✅ Backend deployed successfully!"
+

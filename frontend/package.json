@@ -12,8 +12,11 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
+    "build:production": "REACT_APP_ENV=production react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "deploy:s3": "./deploy-s3.sh",
+    "deploy:amplify": "./deploy-amplify.sh"
   },
   "eslintConfig": {
     "extends": [

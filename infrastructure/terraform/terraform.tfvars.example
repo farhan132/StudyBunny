@@ -1,0 +1,8 @@
+aws_region         = "us-east-1"
+application_name   = "studybunny"
+environment        = "production"
+instance_type      = "t3.small"
+mongodb_uri        = "mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority"
+mongodb_name       = "studybunny"
+django_secret_key  = "your-secret-key-here"
+

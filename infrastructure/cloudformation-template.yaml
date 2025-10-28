@@ -1,0 +1,304 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'StudyBunny - Complete AWS Infrastructure with Elastic Beanstalk, MongoDB Atlas, and S3'
+
+Parameters:
+  ApplicationName:
+    Type: String
+    Default: studybunny
+    Description: Name of the application
+  
+  EnvironmentName:
+    Type: String
+    Default: production
+    Description: Environment name (production, staging, development)
+    AllowedValues:
+      - production
+      - staging
+      - development
+  
+  InstanceType:
+    Type: String
+    Default: t3.small
+    Description: EC2 instance type
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+  
+  MongoDBConnectionString:
+    Type: String
+    NoEcho: true
+    Description: MongoDB Atlas connection string
+  
+  SecretKey:
+    Type: String
+    NoEcho: true
+    Description: Django SECRET_KEY
+  
+  CanvasBaseURL:
+    Type: String
+    Default: 'https://canvas.instructure.com'
+    Description: Canvas LMS base URL
+
+Resources:
+  # S3 Bucket for Media Files
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ApplicationName}-${EnvironmentName}-media'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3000
+
+  MediaBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MediaBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action:
+              - s3:GetObject
+            Resource: !Sub '${MediaBucket.Arn}/*'
+
+  # S3 Bucket for Static Files
+  StaticBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ApplicationName}-${EnvironmentName}-static'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  StaticBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StaticBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action:
+              - s3:GetObject
+            Resource: !Sub '${StaticBucket.Arn}/*'
+
+  # IAM Role for EC2 instances
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub '${MediaBucket.Arn}'
+                  - !Sub '${MediaBucket.Arn}/*'
+                  - !Sub '${StaticBucket.Arn}'
+                  - !Sub '${StaticBucket.Arn}/*'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2Role
+
+  # Elastic Beanstalk Application
+  Application:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName: !Ref ApplicationName
+      Description: StudyBunny Study Management Application
+
+  ApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: !Ref Application
+      Description: Initial version
+      SourceBundle:
+        S3Bucket: !Sub 'elasticbeanstalk-samples-${AWS::Region}'
+        S3Key: python-sample.zip
+
+  # Elastic Beanstalk Environment
+  Environment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName: !Ref Application
+      EnvironmentName: !Sub '${ApplicationName}-${EnvironmentName}'
+      SolutionStackName: '64bit Amazon Linux 2023 v4.0.0 running Python 3.11'
+      OptionSettings:
+        # Environment type
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: LoadBalanced
+        
+        # Instance settings
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: !Ref InstanceType
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: IamInstanceProfile
+          Value: !Ref EC2InstanceProfile
+        
+        # Auto Scaling settings
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: '1'
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: '4'
+        
+        # Load Balancer settings
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: HealthCheckPath
+          Value: '/api/health/'
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: Port
+          Value: '80'
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: Protocol
+          Value: HTTP
+        
+        # Environment variables
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DJANGO_SETTINGS_MODULE
+          Value: study_bunny.settings
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: SECRET_KEY
+          Value: !Ref SecretKey
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: DEBUG
+          Value: 'False'
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: USE_MONGODB
+          Value: 'True'
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: MONGODB_URI
+          Value: !Ref MongoDBConnectionString
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: MONGODB_NAME
+          Value: studybunny
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: AWS_STORAGE_BUCKET_NAME
+          Value: !Ref MediaBucket
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: USE_S3
+          Value: 'True'
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: AWS_REGION
+          Value: !Ref AWS::Region
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: CANVAS_BASE_URL
+          Value: !Ref CanvasBaseURL
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: STUDYBUNNY_INTENSITY
+          Value: '0.7'
+
+  # CloudFront Distribution for Frontend
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub 'CloudFront distribution for ${ApplicationName}'
+        DefaultRootObject: index.html
+        Origins:
+          - Id: ElasticBeanstalkOrigin
+            DomainName: !GetAtt Environment.EndpointURL
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
+          TargetOriginId: ElasticBeanstalkOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+            - PUT
+            - POST
+            - PATCH
+            - DELETE
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: true
+            Cookies:
+              Forward: all
+            Headers:
+              - '*'
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+Outputs:
+  ApplicationURL:
+    Description: URL of the Elastic Beanstalk application
+    Value: !GetAtt Environment.EndpointURL
+    Export:
+      Name: !Sub '${AWS::StackName}-ApplicationURL'
+  
+  CloudFrontURL:
+    Description: CloudFront distribution URL
+    Value: !GetAtt CloudFrontDistribution.DomainName
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontURL'
+  
+  MediaBucketName:
+    Description: S3 bucket for media files
+    Value: !Ref MediaBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-MediaBucket'
+  
+  StaticBucketName:
+    Description: S3 bucket for static files
+    Value: !Ref StaticBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-StaticBucket'
+  
+  EnvironmentName:
+    Description: Elastic Beanstalk environment name
+    Value: !Ref Environment
+    Export:
+      Name: !Sub '${AWS::StackName}-EnvironmentName'
+
